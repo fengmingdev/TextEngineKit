@@ -1,0 +1,16 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "FMLogger",
+        "repositoryURL": "https://github.com/fengmingdev/FMLogger.git",
+        "state": {
+          "branch": null,
+          "revision": "9e13345842baeb8542a0ae382c0c5706d11a5b5a",
+          "version": "1.0.1"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
