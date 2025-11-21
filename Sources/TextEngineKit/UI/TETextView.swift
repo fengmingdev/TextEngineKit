@@ -1,3 +1,11 @@
+// 
+//  TETextView.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  富文本视图：支持编辑与显示、解析、高亮与附件管理，含异步布局与渲染。 
+// 
 #if canImport(UIKit)
 import UIKit
 
@@ -645,9 +653,13 @@ public final class TETextView: UITextView {
             elements.append(elem)
         }
         attributed.enumerateAttribute(NSAttributedString.Key.link, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard let v = value as? String, let url = Foundation.URL(string: v) else { return }
+            let url: Foundation.URL?
+            if let v = value as? Foundation.URL { url = v }
+            else if let s = value as? String { url = Foundation.URL(string: s) }
+            else { url = nil }
+            guard let u = url else { return }
             let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let linkElem = TETextViewAccessibilityLinkElement(accessibilityContainer: self, url: url, copyText: (attributed.string as NSString).substring(with: range))
+            let linkElem = TEAccessibilityLinkElement(accessibilityContainer: self, url: u, copyText: (attributed.string as NSString).substring(with: range))
             linkElem.accessibilityTraits = [.link]
             linkElem.accessibilityLabel = (attributed.string as NSString).substring(with: range)
             linkElem.accessibilityFrameInContainerSpace = rect
@@ -656,12 +668,14 @@ public final class TETextView: UITextView {
             elements.append(linkElem)
         }
         attributed.enumerateAttribute(TEAttributeKey.textAttachment, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard value is TETextAttachment else { return }
+            guard let attachment = value as? TETextAttachment else { return }
             let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let elem = UIAccessibilityElement(accessibilityContainer: self)
+            let elem = TEAccessibilityAttachmentElement(accessibilityContainer: self, attachment: attachment)
             elem.accessibilityTraits = [.image]
             elem.accessibilityLabel = "附件"
             elem.accessibilityFrameInContainerSpace = rect
+            elem.onView = { [weak self] att in self?.onAttachmentView?(att) }
+            elem.onSave = { [weak self] att in self?.onAttachmentSave?(att) }
             elements.append(elem)
         }
         self.accessibilityElements = elements
@@ -692,83 +706,41 @@ public final class TETextView: UITextView {
     ///   - context: 图形上下文
     ///   - rect: 绘制矩形
     private func drawAttachments(in context: CGContext, rect: CGRect) {
-        let attachments = attachmentManager.allAttachments()
-        
-        for attachment in attachments {
-            // 这里需要计算附件的实际绘制位置
-            let attachmentRect = CGRect(x: 0, y: 0, width: attachment.size.width, height: attachment.size.height)
-            attachment.draw(in: context, rect: attachmentRect, containerView: self)
+        guard let attributed = attributedText, let info = lastLayoutInfo else { return }
+        for (i, line) in info.lines.enumerated() {
+            let origin = info.lineOrigins[i]
+            let cfRuns = CTLineGetGlyphRuns(line)
+            let runs = (cfRuns as NSArray as? [CTRun]) ?? []
+            for run in runs {
+                let rr = CTRunGetStringRange(run)
+                let loc = rr.location
+                if let attachment = attributed.attribute(TEAttributeKey.textAttachment, at: loc, effectiveRange: nil) as? TETextAttachment {
+                    var ascent: CGFloat = 0
+                    var descent: CGFloat = 0
+                    var leading: CGFloat = 0
+                    _ = CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading)
+                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, nil)
+                    let height = max(attachment.size.height, ascent + descent)
+                    var y = origin.y - descent
+                    switch attachment.verticalAlignment {
+                    case .top:
+                        y = origin.y + (ascent - attachment.size.height)
+                    case .center:
+                        y = y + (ascent + descent - attachment.size.height) / 2
+                    case .bottom:
+                        break
+                    }
+                    y += attachment.baselineOffset
+                    let drawRect = CGRect(x: origin.x + CGFloat(offset), y: y, width: attachment.size.width, height: height)
+                    attachment.draw(in: context, rect: drawRect, containerView: self)
+                }
+            }
         }
     }
 
-    private func rebuildAccessibilityElements(layoutInfo: TELayoutInfo) {
-        guard let attributed = attributedText else { return }
-        var elements: [UIAccessibilityElement] = []
-        for (index, line) in layoutInfo.lines.enumerated() {
-            let origin = layoutInfo.lineOrigins[index]
-            var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
-            let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
-            let rect = CGRect(x: origin.x, y: origin.y - descent, width: width, height: ascent + descent)
-            let elem = UIAccessibilityElement(accessibilityContainer: self)
-            let stringRange = CTLineGetStringRange(line)
-            let nsRange = NSRange(location: stringRange.location, length: stringRange.length)
-            elem.accessibilityLabel = (attributed.string as NSString).substring(with: nsRange)
-            elem.accessibilityTraits = [.staticText]
-            elem.accessibilityFrameInContainerSpace = rect
-            elements.append(elem)
-        }
-        attributed.enumerateAttribute(NSAttributedString.Key.link, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard let v = value as? String, let url = Foundation.URL(string: v) else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let linkElem = TEAccessibilityLinkElement(accessibilityContainer: self, url: url, copyText: (attributed.string as NSString).substring(with: range))
-            linkElem.accessibilityTraits = [.link]
-            linkElem.accessibilityLabel = (attributed.string as NSString).substring(with: range)
-            linkElem.accessibilityFrameInContainerSpace = rect
-            linkElem.onOpen = { [weak self] u in self?.onLinkOpen?(u) }
-            linkElem.onCopy = { [weak self] s in self?.onCopy?(s) }
-            elements.append(linkElem)
-        }
-        attributed.enumerateAttribute(TEAttributeKey.textAttachment, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard value is TETextAttachment else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let elem = UIAccessibilityElement(accessibilityContainer: self)
-            elem.accessibilityTraits = [.image]
-            elem.accessibilityLabel = "附件"
-            elem.accessibilityFrameInContainerSpace = rect
-            elements.append(elem)
-        }
-        self.accessibilityElements = elements
-    }
+    
 
-    final class TEAccessibilityLinkElement: UIAccessibilityElement {
-        var url: Foundation.URL
-        var copyText: String
-        var onOpen: ((Foundation.URL) -> Void)?
-        var onCopy: ((String) -> Void)?
-        init(accessibilityContainer: Any, url: Foundation.URL, copyText: String) {
-            self.url = url
-            self.copyText = copyText
-            super.init(accessibilityContainer: accessibilityContainer)
-            let openAction = UIAccessibilityCustomAction(name: "打开链接", target: self, selector: #selector(accessibilityOpen))
-            let copyAction = UIAccessibilityCustomAction(name: "复制文本", target: self, selector: #selector(accessibilityCopy))
-            self.accessibilityCustomActions = [openAction, copyAction]
-        }
-        override func accessibilityActivate() -> Bool {
-            onOpen?(url)
-            TETextEngine.shared.logDebug("VoiceOver 激活链接: \(url.absoluteString)", category: "accessibility")
-            return true
-        }
-        @objc private func accessibilityOpen() -> Bool {
-            onOpen?(url)
-            TETextEngine.shared.logDebug("VoiceOver 打开链接: \(url.absoluteString)", category: "accessibility")
-            return true
-        }
-        @objc private func accessibilityCopy() -> Bool {
-            onCopy?(copyText)
-            TETextEngine.shared.logDebug("VoiceOver 复制文本: length=\(copyText.count)", category: "accessibility")
-            return true
-        }
-    }
+    
 
     private func setupGestureRecognizers() {
         let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
@@ -781,13 +753,40 @@ public final class TETextView: UITextView {
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard let attributed = attributedText else { return }
         let point = gesture.location(in: self)
-        _ = highlightManager.handleTap(at: point, in: attributed, textRect: bounds)
+        let handled = highlightManager.handleTap(at: point, in: attributed, textRect: bounds, layoutInfo: lastLayoutInfo)
+        if handled { return }
+        let index = highlightManager.characterIndex(at: point, in: attributed, textRect: bounds, layoutInfo: lastLayoutInfo)
+        guard index != NSNotFound else { return }
+        var effective = NSRange(location: 0, length: 0)
+        let value = attributed.attribute(.link, at: index, effectiveRange: &effective)
+        let url: URL? = {
+            if let u = value as? URL { return u }
+            if let s = value as? String { return URL(string: s) }
+            return nil
+        }()
+        if let u = url { onLinkOpen?(u) }
     }
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let attributed = attributedText else { return }
         let point = gesture.location(in: self)
-        _ = highlightManager.handleLongPress(at: point, in: attributed, textRect: bounds)
+        let handled = highlightManager.handleLongPress(at: point, in: attributed, textRect: bounds, layoutInfo: lastLayoutInfo)
+        if handled { return }
+        let index = highlightManager.characterIndex(at: point, in: attributed, textRect: bounds, layoutInfo: lastLayoutInfo)
+        guard index != NSNotFound else { return }
+        var effective = NSRange(location: 0, length: 0)
+        let value = attributed.attribute(.link, at: index, effectiveRange: &effective)
+        let url: URL? = {
+            if let u = value as? URL { return u }
+            if let s = value as? String { return URL(string: s) }
+            return nil
+        }()
+        if let u = url {
+            onLinkOpen?(u)
+        } else {
+            let text = (attributed.string as NSString).substring(with: effective)
+            onCopy?(text)
+        }
     }
 
     

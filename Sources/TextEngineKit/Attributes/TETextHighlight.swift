@@ -1,3 +1,11 @@
+// 
+//  TETextHighlight.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本高亮：定义高亮样式与交互行为，支持淡入淡出与范围管理。 
+// 
 import Foundation
 import CoreGraphics
 
@@ -348,11 +356,11 @@ public final class TEHighlightManager {
     ///   - text: 文本
     ///   - textRect: 文本矩形
     /// - Returns: 是否处理了点击
-    public func handleTap(at point: CGPoint, in text: NSAttributedString, textRect: CGRect) -> Bool {
+    public func handleTap(at point: CGPoint, in text: NSAttributedString, textRect: CGRect, layoutInfo: TELayoutInfo? = nil) -> Bool {
         guard isHighlightEnabled, let containerView = containerView else { return false }
         
         // 找到点击位置对应的字符索引
-        let characterIndex = characterIndex(at: point, in: text, textRect: textRect)
+        let characterIndex = characterIndex(at: point, in: text, textRect: textRect, layoutInfo: layoutInfo)
         guard characterIndex != NSNotFound else { return false }
         
         // 找到对应的高亮
@@ -391,11 +399,11 @@ public final class TEHighlightManager {
     ///   - text: 文本
     ///   - textRect: 文本矩形
     /// - Returns: 是否处理了长按
-    public func handleLongPress(at point: CGPoint, in text: NSAttributedString, textRect: CGRect) -> Bool {
+    public func handleLongPress(at point: CGPoint, in text: NSAttributedString, textRect: CGRect, layoutInfo: TELayoutInfo? = nil) -> Bool {
         guard isHighlightEnabled, let containerView = containerView else { return false }
         
         // 找到长按位置对应的字符索引
-        let characterIndex = characterIndex(at: point, in: text, textRect: textRect)
+        let characterIndex = characterIndex(at: point, in: text, textRect: textRect, layoutInfo: layoutInfo)
         guard characterIndex != NSNotFound else { return false }
         
         // 找到对应的高亮

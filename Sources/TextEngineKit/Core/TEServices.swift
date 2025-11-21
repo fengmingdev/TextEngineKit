@@ -1,3 +1,11 @@
+// 
+//  TEServices.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  服务层：定义与实现配置、日志与性能监控等服务协议与具体实现。 
+// 
 import Foundation
 import FMLogger
 #if canImport(CoreGraphics)
@@ -57,12 +65,12 @@ public final class TEConfigurationManager: TEConfigurationManagerProtocol {
     public func updateConfiguration(_ configuration: TEConfiguration) {
         self.configuration = configuration
         // 安全日志：不输出具体配置内容
-        FMLogger.shared.log("配置已更新", level: .info, category: "configuration", metadata: nil)
+        TETextEngine.shared.logInfo("配置已更新", category: "configuration")
     }
     
     public func resetToDefault() {
         self.configuration = TEConfiguration()
-        FMLogger.shared.log("配置已重置为默认值", level: .info, category: "configuration", metadata: nil)
+        TETextEngine.shared.logInfo("配置已重置为默认值", category: "configuration")
     }
 }
 
@@ -104,7 +112,7 @@ public final class TEPerformanceMonitor: TEPerformanceMonitorProtocol {
     
     // MARK: - 属性
     
-    private let operationCount = TEAtomicCounter()
+    private var operationCount: Int = 0
     private let statisticsQueue = DispatchQueue(label: "com.textenginekit.performance")
     private var totalTime: TimeInterval = 0
     private var minTime: TimeInterval = .greatestFiniteMagnitude
@@ -129,13 +137,12 @@ public final class TEPerformanceMonitor: TEPerformanceMonitorProtocol {
         statisticsQueue.async { [weak self] in
             guard let self = self else { return }
             
-            self.operationCount.increment()
+            self.operationCount += 1
             self.totalTime += duration
             self.minTime = min(self.minTime, duration)
             self.maxTime = max(self.maxTime, duration)
             
-            // 记录性能日志
-            FMLogger.shared.log("性能指标", level: .debug, category: "performance", metadata: [
+            TETextEngine.shared.log("性能指标", level: .debug, category: "performance", metadata: [
                 "operation": operation,
                 "duration_ms": String(format: "%.3f", duration * 1000)
             ])
@@ -159,7 +166,7 @@ public final class TEPerformanceMonitor: TEPerformanceMonitorProtocol {
                 self.statisticsQueue.async { [weak self] in
                     guard let self = self else { return }
                     
-                    self.operationCount.increment()
+                    self.operationCount += 1
                     self.totalTime += duration
                     self.minTime = min(self.minTime, duration)
                     self.maxTime = max(self.maxTime, duration)
@@ -179,7 +186,7 @@ public final class TEPerformanceMonitor: TEPerformanceMonitorProtocol {
     
     public func getStatistics() -> PerformanceStatistics {
         return statisticsQueue.sync {
-            let count = operationCount.value
+            let count = operationCount
             let avgTime = count > 0 ? totalTime / Double(count) : 0
             let minTime = count > 0 ? minTime : 0
             let maxTime = count > 0 ? maxTime : 0
@@ -198,7 +205,7 @@ public final class TEPerformanceMonitor: TEPerformanceMonitorProtocol {
         statisticsQueue.async { [weak self] in
             guard let self = self else { return }
             
-            self.operationCount.reset()
+            self.operationCount = 0
             self.totalTime = 0
             self.minTime = .greatestFiniteMagnitude
             self.maxTime = 0
@@ -555,36 +562,7 @@ public protocol TEMetricProvider {
     func getMetrics() -> [TEMetric]
 }
 
-/// 原子计数器
-private final class TEAtomicCounter {
-    private let counter = UnsafeMutablePointer<Int32>.allocate(capacity: 1)
-    
-    init() {
-        counter.pointee = 0
-    }
-    
-    deinit {
-        counter.deallocate()
-    }
-    
-    func increment() {
-        OSAtomicIncrement32(counter)
-    }
-    
-    func add(_ value: Int) {
-        for _ in 0..<value {
-            increment()
-        }
-    }
-    
-    var value: Int {
-        return Int(counter.pointee)
-    }
-    
-    func reset() {
-        counter.pointee = 0
-    }
-}
+ 
 
 /// 线程安全属性包装器
 @propertyWrapper

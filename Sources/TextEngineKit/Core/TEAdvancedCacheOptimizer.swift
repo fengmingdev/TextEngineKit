@@ -1,3 +1,11 @@
+// 
+//  TEAdvancedCacheOptimizer.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  高级缓存优化：提供缓存成本估算与命中策略优化，提升布局与渲染性能。 
+// 
 import Foundation
 
 /// 高级缓存策略优化器

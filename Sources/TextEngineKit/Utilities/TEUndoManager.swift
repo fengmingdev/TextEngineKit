@@ -1,3 +1,11 @@
+// 
+//  TEUndoManager.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  撤销管理：提供编辑操作的撤销/重做管理与委托回调。 
+// 
 import Foundation
 
 /// 撤销管理器

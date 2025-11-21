@@ -1,3 +1,11 @@
+// 
+//  TELayoutManager.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本布局管理器：负责同步/异步布局计算、缓存管理与性能统计。 
+// 
 import Foundation
 import CoreText
 import CoreGraphics
@@ -183,14 +191,19 @@ public final class TELayoutManager {
         }
         
         // 异步执行布局
+        // 使用后台队列来避免阻塞主线程，同时通过信号量控制并发度
         layoutQueue.async { [weak self] in
             guard let self = self else { return }
             
+            // 获取信号量锁以控制并发数量
+            // 这防止了过多线程同时进行布局计算导致的性能问题
             self.semaphore.wait()
             
             let threadStartTime = CFAbsoluteTimeGetCurrent()
             
-            // 再次检查缓存（双重检查）
+            // 再次检查缓存（双重检查模式）
+            // 为什么需要双重检查：在获取锁的过程中，其他线程可能已经完成了相同的布局计算
+            // 这样可以避免重复计算，提高整体性能
             if let cachedLayout = self.layoutCache.object(forKey: cacheKey) {
                 self.semaphore.signal()
                 _ = (CFAbsoluteTimeGetCurrent() - threadStartTime) * 1000
@@ -204,6 +217,8 @@ public final class TELayoutManager {
             let layoutInfo = self.performLayout(attributedString: attributedString, container: container, options: options)
             
             // 缓存结果（设置估算成本）
+            // 成本计算公式：文本长度 * 2 + 行数 * 256
+            // 这个估算考虑了文本字符和行布局信息的内存占用
             let cost = attributedString.length * 2 + layoutInfo.lineCount * 256
                 if let ec = self.externalCache {
                     ec.set(layoutInfo, forKey: (cacheKey as String))
@@ -222,6 +237,7 @@ public final class TELayoutManager {
             )
             self.updateStatistics(hit: false, duration: duration)
             
+            // 确保在主线程回调，因为 UI 更新通常需要在主线程进行
             DispatchQueue.main.async {
                 completion(layoutInfo)
             }

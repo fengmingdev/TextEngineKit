@@ -1,3 +1,11 @@
+// 
+//  TEContainer.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  依赖注入容器：提供线程安全的服务注册、解析与生命周期管理。 
+// 
 import Foundation
 
 /// TextEngineKit依赖注入容器

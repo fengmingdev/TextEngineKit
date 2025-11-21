@@ -1,3 +1,11 @@
+// 
+//  TETextEngine.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  核心引擎：提供统一配置与日志系统、性能记录、生命周期管理与引擎信息。 
+// 
 import Foundation
 import FMLogger
 #if canImport(CoreGraphics)
@@ -136,6 +144,24 @@ public final class TETextEngine: TETextEngineProtocol {
     ///   - category: 调试类别
     func logDebug(_ message: String, category: String = "general") {
         logger.log(message, level: .debug, category: category)
+    }
+
+    /// 记录信息日志
+    /// - Parameters:
+    ///   - message: 信息内容
+    ///   - category: 分类
+    public func logInfo(_ message: String, category: String = "general") {
+        logger.log(message, level: .info, category: category)
+    }
+
+    /// 通用日志入口
+    /// - Parameters:
+    ///   - message: 日志内容
+    ///   - level: 日志级别
+    ///   - category: 分类
+    ///   - metadata: 附加元数据
+    public func log(_ message: String, level: TELogLevel, category: String = "general", metadata: [String: Any]? = nil) {
+        logger.log(message, level: level.fmLogLevel, category: category, metadata: metadata)
     }
     
     /// 记录严重错误日志

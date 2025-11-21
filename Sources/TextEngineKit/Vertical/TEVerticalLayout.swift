@@ -1,3 +1,11 @@
+// 
+//  TEVerticalLayout.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  竖排布局：提供竖排文本的布局支持与相关计算。 
+// 
 import Foundation
 import CoreText
 import CoreGraphics
@@ -949,20 +957,6 @@ public final class TEVerticalTextRenderer: TERendererProtocol {
         renderSynchronously(layout, in: context, rect: rect, options: vOptions)
     }
     
-    public func renderAsynchronously(_ text: NSAttributedString, rect: CGRect, options: TERenderOptions, completion: @escaping () -> Void) {
-        let lm = TEVerticalLayoutManager()
-        let vOptions: TVerticalRenderOptions = options.contains(.antialiased) ? .antialiased : []
-        renderQueue.async { [weak self] in
-            guard let self = self else { return }
-            let layout = lm.layoutSynchronously(text, size: rect.size, options: [])
-            let format = TEPlatformFormat()
-            let renderer = TEPlatform.createGraphicsRenderer(size: rect.size, format: format)
-            _ = renderer.render { ctx in
-                self.renderSynchronously(layout, in: ctx, rect: rect, options: vOptions)
-            }
-            DispatchQueue.main.async { completion() }
-        }
-    }
     
     // MARK: - 公共方法
     
@@ -1024,7 +1018,7 @@ public final class TEVerticalTextRenderer: TERendererProtocol {
             let startTime = CFAbsoluteTimeGetCurrent()
             
             // 创建图像上下文
-            let format = TEPlatformFormat()
+            let format = TEPlatform.makeRendererFormat(scale: TEPlatform.screenScale, opaque: true, extendedRange: true)
             let renderer = TEPlatform.createGraphicsRenderer(size: size, format: format)
             let image = renderer.render { context in
                 self.renderSynchronously(layoutInfo, in: context, rect: CGRect(origin: .zero, size: size), options: options)
@@ -1056,7 +1050,7 @@ public final class TEVerticalTextRenderer: TERendererProtocol {
         size: CGSize,
         options: TVerticalRenderOptions = []
     ) -> TEImage? {
-        let format = TEPlatformFormat()
+        let format = TEPlatform.makeRendererFormat(scale: TEPlatform.screenScale, opaque: true, extendedRange: true)
         let renderer = TEPlatform.createGraphicsRenderer(size: size, format: format)
         
         return renderer.render { context in

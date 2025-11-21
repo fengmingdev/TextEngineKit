@@ -1,3 +1,11 @@
+// 
+//  TETextContainer.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本容器：管理布局尺寸、路径与排除路径，支持复制与安全归档。 
+// 
 import Foundation
 import CoreText
 import CoreGraphics

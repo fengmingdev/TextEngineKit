@@ -1,3 +1,11 @@
+// 
+//  TEAttributeKey.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  富文本属性键：定义跨平台属性键与适配，统一富文本样式使用。 
+// 
 import Foundation
 import CoreText
 import CoreGraphics

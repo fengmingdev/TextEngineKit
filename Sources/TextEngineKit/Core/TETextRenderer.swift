@@ -1,3 +1,11 @@
+// 
+//  TETextRenderer.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本渲染器：高性能同步/异步渲染、统计与装饰选项，支持图像输出。 
+// 
 import Foundation
 import CoreText
 import CoreGraphics
@@ -115,10 +123,7 @@ public final class TETextRenderer: TERendererProtocol {
             let startTime = CFAbsoluteTimeGetCurrent()
             
             // 创建图像上下文
-            var format = TEPlatformFormat()
-            format.scale = TEPlatform.screenScale
-            format.opaque = !options.contains(.transparentBackground)
-            format.prefersExtendedRange = true
+            let format = TEPlatform.makeRendererFormat(scale: TEPlatform.screenScale, opaque: !options.contains(.transparentBackground), extendedRange: true)
             
             let safeSize = CGSize(width: max(1, abs(size.width)), height: max(1, abs(size.height)))
             let renderer = TEPlatform.createGraphicsRenderer(size: safeSize, format: format)
@@ -151,10 +156,7 @@ public final class TETextRenderer: TERendererProtocol {
         let id = UUID()
         renderQueue.async { [weak self] in
             guard let self = self else { return }
-            var format = TEPlatformFormat()
-            format.scale = TEPlatform.screenScale
-            format.opaque = !options.contains(.transparentBackground)
-            format.prefersExtendedRange = true
+            let format = TEPlatform.makeRendererFormat(scale: TEPlatform.screenScale, opaque: !options.contains(.transparentBackground), extendedRange: true)
             let safeSize = CGSize(width: max(1, abs(size.width)), height: max(1, abs(size.height)))
             let renderer = TEPlatform.createGraphicsRenderer(size: safeSize, format: format)
             let image = renderer.render { context in
@@ -181,10 +183,7 @@ public final class TETextRenderer: TERendererProtocol {
         size: CGSize,
         options: TERenderOptions = []
     ) -> TEImage? {
-        var format = TEPlatformFormat()
-        format.scale = TEPlatform.screenScale
-        format.opaque = !options.contains(.transparentBackground)
-        format.prefersExtendedRange = true
+        let format = TEPlatform.makeRendererFormat(scale: TEPlatform.screenScale, opaque: !options.contains(.transparentBackground), extendedRange: true)
         
         let safeSize = CGSize(width: max(1, abs(size.width)), height: max(1, abs(size.height)))
         let renderer = TEPlatform.createGraphicsRenderer(size: safeSize, format: format)
@@ -248,119 +247,111 @@ public final class TETextRenderer: TERendererProtocol {
     ///   - rect: 渲染矩形
     private func renderLayoutInfo(_ layoutInfo: TELayoutInfo, in context: CGContext, rect: CGRect) {
         guard !layoutInfo.lines.isEmpty else { return }
-        
-        // 设置文本绘制模式
+        setupTextDrawingContext(context, rect: rect)
+        let didClip = applyExclusionClippingIfNeeded(context, layoutInfo: layoutInfo)
+        for (index, line) in layoutInfo.lines.enumerated() {
+            let origin = layoutInfo.lineOrigins[index]
+            drawLine(line, origin: CGPoint(x: origin.x + rect.origin.x, y: origin.y + rect.origin.y), in: context, rect: rect, layoutInfo: layoutInfo)
+        }
+        finalizeExclusionClipping(context, didClip: didClip)
+    }
+
+    private func setupTextDrawingContext(_ context: CGContext, rect: CGRect) {
         context.textMatrix = .identity
         context.translateBy(x: 0, y: rect.height)
         context.scaleBy(x: 1.0, y: -1.0)
+    }
 
+    private func applyExclusionClippingIfNeeded(_ context: CGContext, layoutInfo: TELayoutInfo) -> Bool {
+        guard !layoutInfo.exclusionPaths.isEmpty else { return false }
         let framePath = CTFrameGetPath(layoutInfo.frame)
-        if !layoutInfo.exclusionPaths.isEmpty {
-            let clipPath = TEPathUtilities.combineForClipping(container: framePath, exclusions: layoutInfo.exclusionPaths)
-            context.saveGState()
-            context.addPath(clipPath)
-            context.clip(using: .evenOdd)
+        let clipPath = TEPathUtilities.combineForClipping(container: framePath, exclusions: layoutInfo.exclusionPaths)
+        context.saveGState()
+        context.addPath(clipPath)
+        context.clip(using: .evenOdd)
+        return true
+    }
+
+    private func finalizeExclusionClipping(_ context: CGContext, didClip: Bool) {
+        if didClip { context.restoreGState() }
+    }
+
+    private func drawLine(_ line: CTLine, origin: CGPoint, in context: CGContext, rect: CGRect, layoutInfo: TELayoutInfo) {
+        context.textPosition = origin
+        let cfRuns = CTLineGetGlyphRuns(line)
+        let runs = (cfRuns as NSArray as? [CTRun]) ?? []
+        for run in runs {
+            drawRun(run, line: line, adjustedOrigin: origin, in: context, layoutInfo: layoutInfo)
         }
-        
-        for (index, line) in layoutInfo.lines.enumerated() {
-            let origin = layoutInfo.lineOrigins[index]
-            let adjustedOrigin = CGPoint(x: origin.x + rect.origin.x, y: origin.y + rect.origin.y)
-            context.textPosition = adjustedOrigin
-            let cfRuns = CTLineGetGlyphRuns(line)
-            let runs = (cfRuns as NSArray as? [CTRun]) ?? []
-            for run in runs {
-                let attrs = CTRunGetAttributes(run) as NSDictionary
-                var ascent: CGFloat = 0
-                var descent: CGFloat = 0
-                var leading: CGFloat = 0
-                let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading))
-                let runRange = CTRunGetStringRange(run)
-                let offset = CTLineGetOffsetForStringIndex(line, runRange.location, nil)
-                let runRect = CGRect(x: adjustedOrigin.x + CGFloat(offset), y: adjustedOrigin.y - descent, width: width, height: ascent + descent)
-                if let border = attrs[TEAttributeKey.textBorder] as? TETextBorder {
-                    border.draw(in: context, rect: runRect, lineOrigin: adjustedOrigin, lineAscent: ascent, lineDescent: descent, lineHeight: ascent + descent)
-                }
-                if let bgBorder = attrs[TEAttributeKey.textBackgroundBorder] as? TETextBorder {
-                    bgBorder.draw(in: context, rect: runRect, lineOrigin: adjustedOrigin, lineAscent: ascent, lineDescent: descent, lineHeight: ascent + descent)
-                }
-                if let highlight = attrs[TEAttributeKey.textHighlight] as? TETextHighlight {
-                    let range = NSRange(location: runRange.location, length: runRange.length)
-                    let isActive = highlightStateProvider?(range) ?? true
-                    if isActive {
-                        context.saveGState()
-                        context.setBlendMode(decorationBlendMode)
-                        let progress = highlightProgressProvider?(range) ?? 1
-                        context.setAlpha(progress)
-                        highlight.draw(in: context, rect: runRect, isHighlighted: true)
-                        context.restoreGState()
-                    }
-                }
-                var hasTransform = false
-                var transform = CGAffineTransform.identity
-                if let t = attrs[TEAttributeKey.glyphTransform] as? CGAffineTransform {
-                    transform = t
-                    hasTransform = true
-                }
-                let hasExclusions = !layoutInfo.exclusionPaths.isEmpty
-                let intersectsExclusions = hasExclusions && layoutInfo.exclusionPaths.contains { $0.boundingBox.intersects(runRect) }
-                if intersectsExclusions {
-                    let glyphCount = CTRunGetGlyphCount(run)
-                    var positions = [CGPoint](repeating: .zero, count: glyphCount)
-                    CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
-                    for i in 0..<glyphCount {
-                        var gAsc: CGFloat = 0
-                        var gDesc: CGFloat = 0
-                        var gLead: CGFloat = 0
-                        let gWidth = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: i, length: 1), &gAsc, &gDesc, &gLead))
-                        let gx = adjustedOrigin.x + positions[i].x
-                        let gy = adjustedOrigin.y
-                        let gRect = CGRect(x: gx, y: gy - gDesc, width: max(gWidth, 0.1), height: gAsc + gDesc)
-                        let center = CGPoint(x: gRect.midX, y: gRect.midY)
-                        let excluded = layoutInfo.exclusionPaths.contains { $0.contains(center) }
-                        if excluded { continue }
-                        context.saveGState()
-                        context.translateBy(x: gx, y: gy)
-                        if hasTransform { context.concatenate(transform) }
-                        context.textPosition = .zero
-                        CTRunDraw(run, context, CFRange(location: i, length: 1))
-                        context.restoreGState()
-                    }
-                } else {
-                    context.saveGState()
-                    context.translateBy(x: adjustedOrigin.x + CGFloat(offset), y: adjustedOrigin.y)
-                    if hasTransform { context.concatenate(transform) }
-                    context.textPosition = .zero
-                    CTRunDraw(run, context, CFRange(location: 0, length: 0))
-                    context.restoreGState()
-                }
+    }
+
+    private func drawRun(_ run: CTRun, line: CTLine, adjustedOrigin: CGPoint, in context: CGContext, layoutInfo: TELayoutInfo) {
+        let attrs = CTRunGetAttributes(run) as NSDictionary
+        var ascent: CGFloat = 0
+        var descent: CGFloat = 0
+        var leading: CGFloat = 0
+        let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading))
+        let runRange = CTRunGetStringRange(run)
+        let offset = CTLineGetOffsetForStringIndex(line, runRange.location, nil)
+        let runRect = CGRect(x: adjustedOrigin.x + CGFloat(offset), y: adjustedOrigin.y - descent, width: width, height: ascent + descent)
+        if let border = attrs[TEAttributeKey.textBorder] as? TETextBorder {
+            border.draw(in: context, rect: runRect, lineOrigin: adjustedOrigin, lineAscent: ascent, lineDescent: descent, lineHeight: ascent + descent)
+        }
+        if let bgBorder = attrs[TEAttributeKey.textBackgroundBorder] as? TETextBorder {
+            bgBorder.draw(in: context, rect: runRect, lineOrigin: adjustedOrigin, lineAscent: ascent, lineDescent: descent, lineHeight: ascent + descent)
+        }
+        if let highlight = attrs[TEAttributeKey.textHighlight] as? TETextHighlight {
+            let range = NSRange(location: runRange.location, length: runRange.length)
+            let isActive = highlightStateProvider?(range) ?? true
+            if isActive {
+                context.saveGState()
+                context.setBlendMode(decorationBlendMode)
+                let progress = highlightProgressProvider?(range) ?? 1
+                context.setAlpha(progress)
+                highlight.draw(in: context, rect: runRect, isHighlighted: true)
+                context.restoreGState()
             }
         }
-
-        if !layoutInfo.exclusionPaths.isEmpty {
+        var hasTransform = false
+        var transform = CGAffineTransform.identity
+        if let t = attrs[TEAttributeKey.glyphTransform] as? CGAffineTransform {
+            transform = t
+            hasTransform = true
+        }
+        let hasExclusions = !layoutInfo.exclusionPaths.isEmpty
+        let intersectsExclusions = hasExclusions && layoutInfo.exclusionPaths.contains { $0.boundingBox.intersects(runRect) }
+        if intersectsExclusions {
+            let glyphCount = CTRunGetGlyphCount(run)
+            var positions = [CGPoint](repeating: .zero, count: glyphCount)
+            CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
+            for i in 0..<glyphCount {
+                var gAsc: CGFloat = 0
+                var gDesc: CGFloat = 0
+                var gLead: CGFloat = 0
+                let gWidth = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: i, length: 1), &gAsc, &gDesc, &gLead))
+                let gx = adjustedOrigin.x + positions[i].x
+                let gy = adjustedOrigin.y
+                let gRect = CGRect(x: gx, y: gy - gDesc, width: max(gWidth, 0.1), height: gAsc + gDesc)
+                let center = CGPoint(x: gRect.midX, y: gRect.midY)
+                let excluded = layoutInfo.exclusionPaths.contains { $0.contains(center) }
+                if excluded { continue }
+                context.saveGState()
+                context.translateBy(x: gx, y: gy)
+                if hasTransform { context.concatenate(transform) }
+                context.textPosition = .zero
+                CTRunDraw(run, context, CFRange(location: i, length: 1))
+                context.restoreGState()
+            }
+        } else {
+            context.saveGState()
+            context.translateBy(x: adjustedOrigin.x + CGFloat(offset), y: adjustedOrigin.y)
+            if hasTransform { context.concatenate(transform) }
+            context.textPosition = .zero
+            CTRunDraw(run, context, CFRange(location: 0, length: 0))
             context.restoreGState()
         }
     }
 
-    public func renderAsynchronously(_ text: NSAttributedString, rect: CGRect, options: TERenderOptions, completion: @escaping () -> Void) {
-        renderQueue.async { [weak self] in
-            guard let self = self else { return }
-            let start = CFAbsoluteTimeGetCurrent()
-            #if canImport(CoreGraphics)
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-            let width = Int(max(1, rect.width))
-            let height = Int(max(1, rect.height))
-            if let ctx = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace, bitmapInfo: bitmapInfo) {
-                self.renderSynchronously(text, in: ctx, rect: rect, options: options)
-            }
-            #endif
-            let duration = (CFAbsoluteTimeGetCurrent() - start) * 1000
-            DispatchQueue.main.async {
-                self.updateStatistics(frameCount: 1, totalDuration: duration, averageFrameTime: duration)
-                completion()
-            }
-        }
-    }
     
     /// 更新统计信息
     /// - Parameters:
@@ -480,5 +471,4 @@ public struct TERenderStatistics {
 }
 public protocol TERendererProtocol {
     func renderSynchronously(_ text: NSAttributedString, in context: CGContext, rect: CGRect, options: TERenderOptions)
-    func renderAsynchronously(_ text: NSAttributedString, rect: CGRect, options: TERenderOptions, completion: @escaping () -> Void)
 }

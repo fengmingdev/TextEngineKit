@@ -1,3 +1,11 @@
+// 
+//  TETextAttachment.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本附件：定义附件模型与渲染参数，支持图片/自定义内容嵌入。 
+// 
 import Foundation
 import CoreGraphics
 

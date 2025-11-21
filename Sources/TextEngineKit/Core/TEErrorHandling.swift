@@ -1,3 +1,11 @@
+// 
+//  TEErrorHandling.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  错误处理：定义错误类型与日志记录策略，支持统一的错误上报。 
+// 
 import Foundation
 
 /// 统一错误类型定义

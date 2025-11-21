@@ -1,3 +1,11 @@
+// 
+//  TEPathUtilities.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  路径工具：提供几何计算与裁剪辅助，用于文本布局与绘制。 
+// 
 import Foundation
 import CoreGraphics
 

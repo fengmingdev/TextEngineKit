@@ -1,3 +1,11 @@
+// 
+//  TETextBinding.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本绑定：用于文本编辑过程的属性绑定与联动控制。 
+// 
 import Foundation
 
 public final class TETextBinding: NSObject, NSSecureCoding {

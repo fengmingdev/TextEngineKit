@@ -1,3 +1,11 @@
+// 
+//  TEParser.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本解析：定义解析协议与 Markdown 解析器，实现标题、代码、链接与强调等解析。 
+// 
 import Foundation
 #if canImport(AppKit)
 import AppKit
@@ -188,11 +196,13 @@ public final class TEMarkdownParser: TETextParser {
     /// - Parameter attributedString: 属性字符串
     private func parseLinks(in attributedString: NSMutableAttributedString) {
         let text = attributedString.string
+        // 使用严格的 Markdown 链接格式：[文本](URL)
         let pattern = "\\[([^\\]]+)\\]\\(([^\\)]+)\\)"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
         
         let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.count))
         
+        // 从后向前处理，避免范围变化影响后续匹配
         for match in matches.reversed() {
             guard match.numberOfRanges == 3 else { continue }
             
@@ -200,8 +210,17 @@ public final class TEMarkdownParser: TETextParser {
             let urlRange = match.range(at: 2)
             
             let rawURL = (text as NSString).substring(with: urlRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // 安全处理：过滤控制字符，防止注入攻击
+            // 为什么需要过滤：用户输入的 URL 可能包含恶意控制字符
             let sanitized = String(rawURL.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+            
+            // 限制 URL 长度，防止内存耗尽攻击
+            // 2048 字符是合理的 URL 长度上限，超过此长度的 URL 通常是无效的
             guard sanitized.count <= 2048 else { continue }
+            
+            // 验证 URL 格式和协议，只允许 HTTP/HTTPS 协议
+            // 为什么限制协议：防止 javascript:、file: 等危险协议
             if let url = URL(string: sanitized), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
                 var linkAttributes = linkAttributes
                 linkAttributes[.link] = url.absoluteString

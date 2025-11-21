@@ -1,3 +1,11 @@
+// 
+//  TEPlatform.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  平台抽象：统一跨平台类型别名与图形渲染封装，提供屏幕与系统信息。 
+// 
 import Foundation
 import CoreGraphics
 
@@ -128,17 +136,117 @@ public func TEPlatformFormat() -> any TEGraphicsRendererFormatProtocol {
     return format
     #endif
 }
+
+public extension TEPlatform {
+    static func makeRendererFormat(scale: CGFloat, opaque: Bool, extendedRange: Bool) -> any TEGraphicsRendererFormatProtocol {
+        var format = TEPlatformFormat()
+        format.scale = scale
+        format.opaque = opaque
+        format.prefersExtendedRange = extendedRange
+        return format
+    }
+}
 #endif
 
+/// 图形渲染器协议
+///
+/// `TEGraphicsRendererProtocol` 提供了一个跨平台的图形渲染抽象，
+/// 统一了 iOS (UIGraphicsImageRenderer) 和 macOS (NSGraphicsRenderer) 的渲染接口。
+///
+/// 主要用途：
+/// - 在不同平台上提供一致的渲染接口
+/// - 支持自定义渲染格式和配置
+/// - 实现平台无关的图形渲染逻辑
+///
+/// 使用示例：
+/// ```swift
+/// // 创建渲染器格式
+/// let format = TEPlatform.makeRendererFormat(
+///     scale: 2.0,
+///     opaque: false,
+///     extendedRange: true
+/// )
+/// 
+/// // 创建渲染器
+/// let renderer = TEPlatform.createGraphicsRenderer(
+///     size: CGSize(width: 100, height: 100),
+///     format: format
+/// )
+/// 
+/// // 执行渲染
+/// let image = renderer.render { context in
+///     // 绘制操作
+///     context.setFillColor(UIColor.red.cgColor)
+///     context.fill(CGRect(origin: .zero, size: CGSize(width: 100, height: 100)))
+/// }
+/// ```
 public protocol TEGraphicsRendererProtocol {
+    /// 渲染器格式关联类型
+    ///
+    /// 在不同平台上对应不同的格式类型：
+    /// - iOS: `UIGraphicsImageRendererFormat`
+    /// - macOS: `NSGraphicsRendererFormat`
     associatedtype RendererFormat
+    
+    /// 执行渲染操作
+    ///
+    /// 在指定的图形上下文中执行绘制操作，并返回渲染结果。
+    ///
+    /// - Parameter actions: 包含绘制操作的闭包，接收 `CGContext` 参数
+    /// - Returns: 渲染后的图像对象
     func render(actions: (CGContext) -> Void) -> TEImage
+    
+    /// 渲染器格式
+    ///
+    /// 当前渲染器使用的格式配置，包括缩放比例、透明度等设置。
     var format: RendererFormat { get }
 }
 
+/// 图形渲染器格式协议
+///
+/// `TEGraphicsRendererFormatProtocol` 定义了跨平台的渲染器格式接口，
+/// 提供了统一的格式配置方式。
+///
+/// 主要特性：
+/// - 统一的缩放比例设置
+/// - 透明度控制
+/// - 扩展范围支持
+///
+/// 平台差异：
+/// - iOS: 对应 `UIGraphicsImageRendererFormat`
+/// - macOS: 对应 `NSGraphicsRendererFormat`
+///
+/// 使用示例：
+/// ```swift
+/// // 创建格式
+/// var format = TEPlatform.makeRendererFormat(
+///     scale: UIScreen.main.scale,
+///     opaque: false,
+///     extendedRange: true
+/// )
+/// 
+/// // 修改格式属性
+/// format.scale = 3.0  // 高 DPI 渲染
+/// format.opaque = true  // 不透明背景
+/// format.prefersExtendedRange = true  // 支持广色域
+/// ```
 public protocol TEGraphicsRendererFormatProtocol {
+    /// 渲染缩放比例
+    ///
+    /// 控制渲染内容相对于逻辑像素的缩放比例。通常设置为屏幕的 `scale` 属性，
+    /// 以获得最佳的显示效果。较高的值会产生更清晰的图像，但会增加内存使用。
     var scale: CGFloat { get set }
+    
+    /// 是否不透明
+    ///
+    /// 当设置为 `true` 时，渲染器会优化不透明内容的渲染性能。
+    /// 当设置为 `false` 时，支持透明度，但性能略低。
     var opaque: Bool { get set }
+    
+    /// 是否偏好扩展范围
+    ///
+    /// 当设置为 `true` 时，渲染器会启用广色域支持（如果硬件支持）。
+    /// 适用于需要显示高动态范围内容的场景。
     var prefersExtendedRange: Bool { get set }
 }
 
@@ -236,6 +344,15 @@ public struct TEPlatform {
         return TEGraphicsImageRenderer(size: size, format: nsFormat)
         #else
         fatalError("Unsupported platform")
+        #endif
+    }
+
+    public static func cgImage(from image: TEImage) -> CGImage? {
+        #if canImport(UIKit)
+        return image.cgImage
+        #elseif canImport(AppKit)
+        var rect = CGRect(origin: .zero, size: image.teSize)
+        return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
         #endif
     }
 }

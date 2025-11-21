@@ -1,3 +1,11 @@
+// 
+//  TEPerformanceOptimizationSystem.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  性能优化系统：集中管理性能优化策略与监控集成。 
+// 
 import Foundation
 
 /// 综合性能优化系统

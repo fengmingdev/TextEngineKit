@@ -1,3 +1,11 @@
+// 
+//  TELabel.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  富文本标签：高性能显示控件，支持异步布局与渲染、文本高亮与附件管理、交互与无障碍。 
+// 
 #if canImport(UIKit)
 import UIKit
 import Foundation
@@ -220,20 +228,7 @@ public final class TELabel: UILabel {
     /// - Returns: 字符索引
     public func characterIndex(at point: CGPoint) -> Int {
         guard let attributedText = attributedText else { return NSNotFound }
-        
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: bounds.size)
-        let textStorage = NSTextStorage(attributedString: attributedText)
-        
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        
-        textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = numberOfLines
-        textContainer.lineBreakMode = lineBreakMode
-        
-        let index = layoutManager.characterIndex(for: point, in: textContainer, fractionOfDistanceBetweenInsertionPoints: nil)
-        return index
+        return highlightManager.characterIndex(at: point, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
     }
     
     /// 获取指定字符索引的边界矩形
@@ -241,20 +236,8 @@ public final class TELabel: UILabel {
     /// - Returns: 边界矩形
     public func boundingRect(forCharacterAt index: Int) -> CGRect {
         guard let attributedText = attributedText else { return .zero }
-        
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: bounds.size)
-        let textStorage = NSTextStorage(attributedString: attributedText)
-        
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-        
-        textContainer.lineFragmentPadding = 0
-        textContainer.maximumNumberOfLines = numberOfLines
-        textContainer.lineBreakMode = lineBreakMode
-        
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: NSRange(location: index, length: 1), actualCharacterRange: nil)
-        return layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+        let range = NSRange(location: index, length: 1)
+        return highlightManager.boundingRect(for: range, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
     }
     
     /// 获取布局统计信息
@@ -271,34 +254,40 @@ public final class TELabel: UILabel {
     
     // MARK: - 私有方法
     
-    /// 设置手势识别器
-    private func setupGestureRecognizers() {
-        // 点击手势
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-        addGestureRecognizer(tapGesture)
-        
-        // 长按手势
-        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-        longPressGesture.minimumPressDuration = 0.5
-        addGestureRecognizer(longPressGesture)
+    /// 执行点击高亮逻辑
+    func performTap(at location: CGPoint, in attributedText: NSAttributedString) {
+        let handled = highlightManager.handleTap(at: location, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
+        if handled { return }
+        let index = highlightManager.characterIndex(at: location, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
+        guard index != NSNotFound else { return }
+        var effective = NSRange(location: 0, length: 0)
+        let value = attributedText.attribute(.link, at: index, effectiveRange: &effective)
+        let url: URL? = {
+            if let u = value as? URL { return u }
+            if let s = value as? String { return URL(string: s) }
+            return nil
+        }()
+        if let u = url { onLinkOpen?(u) }
     }
-    
-    /// 处理点击手势
-    /// - Parameter gesture: 手势识别器
-    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        let location = gesture.location(in: self)
-        if let attributedText = attributedText {
-            _ = highlightManager.handleTap(at: location, in: attributedText, textRect: bounds)
-        }
-    }
-    
-    /// 处理长按手势
-    /// - Parameter gesture: 手势识别器
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
-        let location = gesture.location(in: self)
-        if let attributedText = attributedText {
-            _ = highlightManager.handleLongPress(at: location, in: attributedText, textRect: bounds)
+
+    /// 执行长按高亮逻辑
+    func performLongPress(at location: CGPoint, in attributedText: NSAttributedString) {
+        let handled = highlightManager.handleLongPress(at: location, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
+        if handled { return }
+        let index = highlightManager.characterIndex(at: location, in: attributedText, textRect: bounds, layoutInfo: lastLayoutInfo)
+        guard index != NSNotFound else { return }
+        var effective = NSRange(location: 0, length: 0)
+        let value = attributedText.attribute(.link, at: index, effectiveRange: &effective)
+        let url: URL? = {
+            if let u = value as? URL { return u }
+            if let s = value as? String { return URL(string: s) }
+            return nil
+        }()
+        if let u = url {
+            onLinkOpen?(u)
+        } else {
+            let text = (attributedText.string as NSString).substring(with: effective)
+            onCopy?(text)
         }
     }
     
@@ -370,134 +359,11 @@ public final class TELabel: UILabel {
     /// - Parameters:
     ///   - context: 图形上下文
     ///   - rect: 绘制矩形
-    private func drawAttachments(in context: CGContext, rect: CGRect) {
-        let attachments = attachmentManager.allAttachments()
-        
-        for attachment in attachments {
-            // 这里需要计算附件的实际绘制位置
-            let attachmentRect = CGRect(x: 0, y: 0, width: attachment.size.width, height: attachment.size.height)
-            attachment.draw(in: context, rect: attachmentRect, containerView: self)
-        }
-    }
+    
 
-    private func rebuildAccessibilityElements(layoutInfo: TELayoutInfo) {
-        guard let attributed = attributedText else { return }
-        var elements: [UIAccessibilityElement] = []
-        // 行元素
-        for (index, line) in layoutInfo.lines.enumerated() {
-            let origin = layoutInfo.lineOrigins[index]
-            var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
-            let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, &leading))
-            let rect = CGRect(x: origin.x, y: origin.y - descent, width: width, height: ascent + descent)
-            let elem = UIAccessibilityElement(accessibilityContainer: self)
-            let stringRange = CTLineGetStringRange(line)
-            let nsRange = NSRange(location: stringRange.location, length: stringRange.length)
-            let labelText = (attributed.string as NSString).substring(with: nsRange)
-            var prefix = ""
-            attributed.enumerateAttributes(in: nsRange, options: []) { attrs, _, _ in
-                if let font = attrs[TEAttributeKey.font] as? UIFont, font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace) {
-                    prefix = "代码: "
-                } else if let color = attrs[TEAttributeKey.foregroundColor] as? UIColor, color == UIColor.systemGray {
-                    prefix = prefix.isEmpty ? "引用: " : prefix
-                } else if let ps = attrs[TEAttributeKey.paragraphStyle] as? NSParagraphStyle, ps.headIndent >= 20 {
-                    prefix = prefix.isEmpty ? "列表: " : prefix
-                }
-            }
-            elem.accessibilityLabel = prefix.isEmpty ? labelText : (prefix + labelText)
-            elem.accessibilityTraits = [.staticText]
-            elem.accessibilityFrameInContainerSpace = rect
-            elements.append(elem)
-        }
-        // 链接元素
-        attributed.enumerateAttribute(.link, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard let v = value as? String, let url = URL(string: v) else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let linkElem = TEAccessibilityLinkElement(accessibilityContainer: self, url: url, copyText: (attributed.string as NSString).substring(with: range))
-            linkElem.accessibilityTraits = [.link]
-            linkElem.accessibilityLabel = (attributed.string as NSString).substring(with: range)
-            linkElem.accessibilityFrameInContainerSpace = rect
-            linkElem.onOpen = { [weak self] u in self?.onLinkOpen?(u) }
-            linkElem.onCopy = { [weak self] s in self?.onCopy?(s) }
-            elements.append(linkElem)
-        }
-        // 附件元素
-        attributed.enumerateAttribute(TEAttributeKey.textAttachment, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
-            guard let attachment = value as? TETextAttachment else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
-            let elem = TEAccessibilityAttachmentElement(accessibilityContainer: self, attachment: attachment)
-            elem.accessibilityTraits = [.image]
-            elem.accessibilityLabel = "附件"
-            elem.accessibilityFrameInContainerSpace = rect
-            elem.onView = { [weak self] att in self?.onAttachmentView?(att) }
-            elem.onSave = { [weak self] att in self?.onAttachmentSave?(att) }
-            elements.append(elem)
-        }
-        self.accessibilityElements = elements
-    }
     
-    final class TEAccessibilityLinkElement: UIAccessibilityElement {
-        var url: URL
-        var copyText: String
-        var onOpen: ((URL) -> Void)?
-        var onCopy: ((String) -> Void)?
-        init(accessibilityContainer: Any, url: URL, copyText: String) {
-            self.url = url
-            self.copyText = copyText
-            super.init(accessibilityContainer: accessibilityContainer)
-            let openAction = UIAccessibilityCustomAction(name: "打开链接", target: self, selector: #selector(accessibilityOpen))
-            let copyAction = UIAccessibilityCustomAction(name: "复制文本", target: self, selector: #selector(accessibilityCopy))
-            self.accessibilityCustomActions = [openAction, copyAction]
-        }
-        override func accessibilityActivate() -> Bool {
-            onOpen?(url)
-            TETextEngine.shared.logDebug("VoiceOver 激活链接: \(url.absoluteString)", category: "accessibility")
-            return true
-        }
-        @objc private func accessibilityOpen() -> Bool {
-            onOpen?(url)
-            TETextEngine.shared.logDebug("VoiceOver 打开链接: \(url.absoluteString)", category: "accessibility")
-            return true
-        }
-        @objc private func accessibilityCopy() -> Bool {
-            onCopy?(copyText)
-            TETextEngine.shared.logDebug("VoiceOver 复制文本: length=\(copyText.count)", category: "accessibility")
-            return true
-        }
-    }
     
-    final class TEAccessibilityAttachmentElement: UIAccessibilityElement {
-        var attachment: TETextAttachment
-        var onView: ((TETextAttachment) -> Void)?
-        var onSave: ((TETextAttachment) -> Void)?
-        init(accessibilityContainer: Any, attachment: TETextAttachment) {
-            self.attachment = attachment
-            super.init(accessibilityContainer: accessibilityContainer)
-            let viewAction = UIAccessibilityCustomAction(name: "查看附件", target: self, selector: #selector(accessibilityView))
-            let saveAction = UIAccessibilityCustomAction(name: "保存图片", target: self, selector: #selector(accessibilitySave))
-            self.accessibilityCustomActions = [viewAction, saveAction]
-        }
-        @objc private func accessibilityView() -> Bool {
-            onView?(attachment)
-            TETextEngine.shared.logDebug("VoiceOver 查看附件", category: "accessibility")
-            return true
-        }
-        @objc private func accessibilitySave() -> Bool {
-            if let onSave = onSave {
-                onSave(attachment)
-                TETextEngine.shared.logDebug("VoiceOver 保存附件(自定义)", category: "accessibility")
-                return true
-            }
-            #if canImport(UIKit)
-            if case .image(let img) = attachment.content {
-                UIImageWriteToSavedPhotosAlbum(img, nil, nil, nil)
-                TETextEngine.shared.logInfo("已保存图片到照片库", category: "accessibility")
-                return true
-            }
-            #endif
-            TETextEngine.shared.logWarning("附件保存未执行：不支持的类型或平台", category: "accessibility")
-            return false
-        }
-    }
+    
 }
 
 extension TELabel: TEAsyncLayerDelegate {

@@ -1,3 +1,11 @@
+// 
+//  TEClipboardManager.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  剪贴板管理：提供复制/粘贴支持与安全清洗，适配系统剪贴板。 
+// 
 import Foundation
 
 #if canImport(UIKit)

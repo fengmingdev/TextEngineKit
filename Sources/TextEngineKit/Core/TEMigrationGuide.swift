@@ -1,3 +1,11 @@
+// 
+//  TEMigrationGuide.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  迁移指南：指导从旧版单例模式迁移到新版依赖注入架构，含兼容包装与分阶段策略。 
+// 
 import Foundation
 import FMLogger
 
@@ -19,9 +27,9 @@ public class TEMigrationGuide {
         
         // 获取引擎信息
         let info = engine.engineInfo()
-        FMLogger.shared.log("引擎信息获取", level: .info, category: "migration", metadata: [
-            "version": info["version"],
-            "platform": info["platform"]
+        TETextEngine.shared.log("引擎信息获取", level: .info, category: "migration", metadata: [
+            "version": (info["version"] as Any),
+            "platform": (info["platform"] as Any)
         ])
     }
     
@@ -47,11 +55,11 @@ public class TEMigrationGuide {
             
             switch result {
             case .success(let attributedString):
-                FMLogger.shared.log("处理成功", level: .info, category: "migration", metadata: [
+                TETextEngine.shared.log("处理成功", level: .info, category: "migration", metadata: [
                     "length": attributedString.length
                 ])
             case .failure(let error):
-                FMLogger.shared.log("处理失败", level: .error, category: "migration", metadata: [
+                TETextEngine.shared.log("处理失败", level: .error, category: "migration", metadata: [
                     "reason": error.localizedDescription
                 ])
             }
@@ -60,7 +68,7 @@ public class TEMigrationGuide {
             engine.stop()
             
         } catch {
-            FMLogger.shared.log("引擎操作失败", level: .error, category: "migration", metadata: [
+            TETextEngine.shared.log("引擎操作失败", level: .error, category: "migration", metadata: [
                 "reason": error.localizedDescription
             ])
         }
@@ -116,9 +124,9 @@ public class TEMigrationGuide {
         
         switch engine {
         case .success:
-            FMLogger.shared.log("配置成功", level: .info, category: "migration", metadata: nil)
+            TETextEngine.shared.logInfo("配置成功", category: "migration")
         case .failure(let error):
-            FMLogger.shared.log("配置失败", level: .error, category: "migration", metadata: [
+            TETextEngine.shared.log("配置失败", level: .error, category: "migration", metadata: [
                 "reason": error.localizedDescription
             ])
         }
@@ -181,18 +189,18 @@ public class TEMigrationGuide {
         if case .failure(let error) = result {
             switch error {
             case .parserFailure(let type, let reason, let input):
-                FMLogger.shared.log("解析失败", level: .error, category: "parsing", metadata: [
+                TETextEngine.shared.log("解析失败", level: .error, category: "parsing", metadata: [
                     "type": type,
                     "reason": reason,
                     "input_length": input.count
                 ])
             case .cacheError(let operation, let key):
-                FMLogger.shared.log("缓存错误", level: .error, category: "cache", metadata: [
+                TETextEngine.shared.log("缓存错误", level: .error, category: "cache", metadata: [
                     "operation": operation,
                     "key_hash": key.hashValue
                 ])
             default:
-                FMLogger.shared.log("其他错误", level: .error, category: "error", metadata: [
+                TETextEngine.shared.log("其他错误", level: .error, category: "error", metadata: [
                     "reason": error.localizedDescription
                 ])
             }

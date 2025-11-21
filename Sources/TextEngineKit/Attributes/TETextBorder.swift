@@ -1,3 +1,11 @@
+// 
+//  TETextBorder.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  文本边框：定义边框样式与绘制参数，用于装饰富文本。 
+// 
 import Foundation
 import CoreGraphics
 

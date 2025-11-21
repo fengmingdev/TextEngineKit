@@ -1,3 +1,11 @@
+// 
+//  TEModuleDependencyOptimizer.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  模块依赖优化：分析与简化模块依赖，提高初始化与运行时效率。 
+// 
 import Foundation
 
 /// 模块依赖优化器

@@ -1,3 +1,11 @@
+// 
+//  TEPluginManager.swift 
+//  TextEngineKit 
+// 
+//  Created by fengming on 2025/11/17. 
+// 
+//  插件管理：提供插件生命周期管理与扩展点注册。 
+// 
 import Foundation
 #if canImport(CoreGraphics)
 import CoreGraphics

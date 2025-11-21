@@ -112,6 +112,98 @@ highlight.tapAction = { containerView, text, range, rect in
 text.setTextHighlight(highlight, range: NSRange(location: 0, length: 12))
 ```
 
+### 异步渲染
+
+```swift
+// 使用 TEAsyncLayer 进行高性能异步渲染
+class CustomDrawingView: UIView {
+    private let asyncLayer = TEAsyncLayer()
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.addSublayer(asyncLayer)
+        asyncLayer.asyncDelegate = self
+        asyncLayer.isAsyncEnabled = true // 启用异步渲染
+    }
+    
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        layer.addSublayer(asyncLayer)
+        asyncLayer.asyncDelegate = self
+        asyncLayer.isAsyncEnabled = true
+    }
+}
+
+extension CustomDrawingView: TEAsyncLayerDelegate {
+    func draw(in context: CGContext, size: CGSize) {
+        // 在后台线程执行复杂的绘制操作
+        let path = UIBezierPath(ovalIn: CGRect(origin: .zero, size: size))
+        context.setFillColor(UIColor.systemBlue.cgColor)
+        context.addPath(path.cgPath)
+        context.fillPath()
+    }
+}
+```
+
+### 文本引擎核心 API
+
+```swift
+// 使用文本引擎进行完整的文本处理流程
+let engine = TETextEngine()
+
+do {
+    // 启动引擎
+    try engine.start()
+    
+    // 配置处理选项
+    let options = TEProcessingOptions(
+        enableAsync: true,
+        maxConcurrency: 4,
+        cacheResult: true,
+        timeout: 30.0
+    )
+    
+    // 处理原始文本
+    let processResult = engine.processText("# Hello World\n\nThis is **bold** text.", options: options)
+    
+    switch processResult {
+    case .success(let attributedString):
+        print("处理成功，结果长度: \(attributedString.length)")
+        
+        // 布局文本
+        let containerSize = CGSize(width: 300, height: 200)
+        let layoutResult = engine.layoutText(attributedString, containerSize: containerSize)
+        
+        switch layoutResult {
+        case .success(let textLayout):
+            print("布局成功，行数: \(textLayout.layoutManager.lineCount)")
+            
+            // 渲染到图形上下文
+            UIGraphicsBeginImageContextWithOptions(containerSize, false, 0)
+            if let context = UIGraphicsGetCurrentContext() {
+                let renderResult = engine.renderText(textLayout, in: context)
+                if case .success = renderResult {
+                    print("渲染成功")
+                }
+            }
+            UIGraphicsEndImageContext()
+            
+        case .failure(let error):
+            print("布局失败: \(error)")
+        }
+        
+    case .failure(let error):
+        print("处理失败: \(error)")
+    }
+    
+} catch {
+    print("引擎启动失败: \(error)")
+}
+
+// 停止引擎
+engine.stop()
+```
+
 ## 架构设计
 
 TextEngineKit 采用模块化架构设计，包含以下核心模块：
@@ -157,9 +249,175 @@ TETextEngine.shared.configureLogging(.development)
 TETextEngine.shared.enablePerformanceLogging = true
 ```
 
+## API 参考
+
+### 核心协议
+
+#### TETextEngineProtocol
+文本引擎核心协议，定义了文本处理、布局和渲染的完整生命周期管理。
+
+```swift
+public protocol TETextEngineProtocol {
+    var configuration: TEConfiguration { get set }
+    var isRunning: Bool { get }
+    
+    func start() throws
+    func stop()
+    func reset()
+    func performHealthCheck() -> Result<Bool, TETextEngineError>
+    
+    func processText(_ text: String, options: TEProcessingOptions?) -> Result<NSAttributedString, TETextEngineError>
+    func layoutText(_ attributedString: NSAttributedString, containerSize: CGSize) -> Result<TETextLayout, TETextEngineError>
+    func renderText(_ layout: TETextLayout, in context: CGContext) -> Result<Void, TETextEngineError>
+}
+```
+
+#### TEAsyncLayerDelegate
+异步图层绘制委托协议。
+
+```swift
+public protocol TEAsyncLayerDelegate: AnyObject {
+    func draw(in context: CGContext, size: CGSize)
+}
+```
+
+### 核心类
+
+#### TETextEngine
+文本引擎主类，实现 `TETextEngineProtocol`。
+
+```swift
+let engine = TETextEngine()
+try engine.start()
+// 使用引擎...
+engine.stop()
+```
+
+#### TELabel
+高性能富文本标签。
+
+```swift
+let label = TELabel()
+label.text = "Hello World"
+label.font = .systemFont(ofSize: 16)
+label.textColor = .label
+```
+
+#### TETextView
+功能丰富的富文本视图。
+
+```swift
+let textView = TETextView()
+textView.attributedText = NSAttributedString(string: "富文本内容")
+```
+
+#### TEAsyncLayer
+高性能异步渲染图层。
+
+```swift
+let asyncLayer = TEAsyncLayer()
+asyncLayer.asyncDelegate = self
+asyncLayer.isAsyncEnabled = true
+```
+
+### 核心结构体
+
+#### TEProcessingOptions
+文本处理选项。
+
+```swift
+public struct TEProcessingOptions {
+    public var enableAsync: Bool      // 是否启用异步处理
+    public var maxConcurrency: Int    // 最大并发数
+    public var cacheResult: Bool      // 是否缓存结果
+    public var timeout: TimeInterval  // 超时时间（秒）
+}
+```
+
+#### TETextLayout
+文本布局信息。
+
+```swift
+public struct TETextLayout {
+    public let attributedString: NSAttributedString
+    public let containerSize: CGSize
+    public let textContainer: TETextContainer
+    public let layoutManager: TELayoutManager
+    public let textStorage: Any?
+}
+```
+
+#### TEPathBox
+路径边界框，支持安全编码。
+
+```swift
+public final class TEPathBox: NSObject, NSSecureCoding {
+    public let rect: CGRect
+    public init(rect: CGRect)
+}
+```
+
+### 扩展属性
+
+TextEngineKit 扩展了 `NSAttributedString` 支持以下属性：
+
+- `.textShadow` - 文本阴影
+- `.textBorder` - 文本边框
+- `.textBackground` - 文本背景
+- `.textAttachment` - 文本附件
+- `.textHighlight` - 文本高亮
+
+## 性能优化建议
+
+### 1. 合理使用缓存
+```swift
+let options = TEProcessingOptions(cacheResult: true)  // 启用结果缓存
+```
+
+### 2. 异步处理大文本
+```swift
+let options = TEProcessingOptions(enableAsync: true, maxConcurrency: 4)
+```
+
+### 3. 使用合适的超时时间
+```swift
+let options = TEProcessingOptions(timeout: 30.0)  // 30秒超时
+```
+
+### 4. 批量处理文本
+```swift
+// 批量处理多个文本
+let texts = ["文本1", "文本2", "文本3"]
+let results = texts.map { engine.processText($0, options: options) }
+```
+
+## 安全注意事项
+
+### 1. 输入验证
+TextEngineKit 内置了输入验证机制：
+- URL 长度限制（最大 2048 字符）
+- 只允许 HTTP/HTTPS 协议
+- 过滤控制字符防止注入攻击
+
+### 2. 内存管理
+- 自动缓存管理
+- 内存警告处理
+- 合理的缓存大小限制
+
+### 3. 线程安全
+- 所有公共 API 都是线程安全的
+- 异步操作有适当的同步机制
+- 支持取消长时间运行的任务
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request 来改进 TextEngineKit。
+
+### 开发规范
+- 遵循 Swift API 设计规范
+- 所有公共接口必须有文档注释
+- 提供使用示例
+- 保持代码简洁，函数长度不超过 50 行
 
 ## 许可证
 
