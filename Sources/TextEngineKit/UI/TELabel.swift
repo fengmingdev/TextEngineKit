@@ -31,6 +31,12 @@ public final class TELabel: UILabel {
     /// 附件管理器
     private let attachmentManager = TEAttachmentManager()
     
+    /// 文本选择管理器
+    private let selectionManager = TETextSelectionManager()
+    
+    /// 排除路径管理器
+    private let exclusionPathManager = TEExclusionPathManager()
+    
     /// 链接打开回调
     public var onLinkOpen: ((Foundation.URL) -> Void)?
     /// 复制回调
@@ -73,10 +79,29 @@ public final class TELabel: UILabel {
         }
     }
     
+    /// 选择代理
+    public weak var selectionDelegate: TETextSelectionManagerDelegate? {
+        didSet {
+            selectionManager.delegate = selectionDelegate
+        }
+    }
+    
     /// 是否启用高亮
     public var isHighlightEnabled: Bool {
         get { return highlightManager.isHighlightEnabled }
         set { highlightManager.isHighlightEnabled = newValue }
+    }
+    
+    /// 是否启用文本选择
+    public var isTextSelectionEnabled: Bool {
+        get { return selectionManager.isSelectionEnabled }
+        set { selectionManager.isSelectionEnabled = newValue }
+    }
+    
+    /// 是否启用选择手柄
+    public var isSelectionHandleEnabled: Bool {
+        get { return selectionManager.isSelectionHandleEnabled }
+        set { selectionManager.isSelectionHandleEnabled = newValue }
     }
     
     /// 自定义绘制代码
@@ -111,6 +136,9 @@ public final class TELabel: UILabel {
             return self.highlightManager.highlightProgress(for: range)
         }
         
+        // 设置选择管理器
+        selectionManager.setupContainerView(self)
+        
         // 启用用户交互
         isUserInteractionEnabled = true
         
@@ -132,11 +160,13 @@ public final class TELabel: UILabel {
             if let attributedText = attributedText {
                 if Thread.isMainThread {
                     parseAttachmentsAndHighlights(in: attributedText)
+                    updateSelectionManagerText(attributedText)
                     accessibilityLabel = attributedText.string
                 } else {
                     TETextEngineError.threadSafetyViolation(operation: "set attributedText on TELabel").log(category: "ui")
                     DispatchQueue.main.async { [weak self] in
                         self?.parseAttachmentsAndHighlights(in: attributedText)
+                        self?.updateSelectionManagerText(attributedText)
                         self?.setNeedsDisplay()
                         self?.setNeedsLayout()
                         self?.accessibilityLabel = attributedText.string
@@ -252,6 +282,154 @@ public final class TELabel: UILabel {
         return renderer.getStatistics()
     }
     
+    // MARK: - UILabel API 兼容性增强
+    
+    /// 文本对齐方式（兼容UILabel）
+    public override var textAlignment: NSTextAlignment {
+        get { return super.textAlignment }
+        set {
+            super.textAlignment = newValue
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 字体（兼容UILabel）
+    public override var font: UIFont! {
+        get { return super.font }
+        set {
+            super.font = newValue
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 文本颜色（兼容UILabel）
+    public override var textColor: UIColor! {
+        get { return super.textColor }
+        set {
+            super.textColor = newValue
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 阴影颜色（兼容UILabel）
+    public override var shadowColor: UIColor? {
+        get { return super.shadowColor }
+        set {
+            super.shadowColor = newValue
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 阴影偏移（兼容UILabel）
+    public override var shadowOffset: CGSize {
+        get { return super.shadowOffset }
+        set {
+            super.shadowOffset = newValue
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 阴影模糊半径（兼容UILabel）
+    public override var shadowRadius: CGFloat {
+        get { return layer.shadowRadius }
+        set {
+            layer.shadowRadius = newValue
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 首选最大布局宽度（兼容UILabel）
+    public override var preferredMaxLayoutWidth: CGFloat {
+        get { return super.preferredMaxLayoutWidth }
+        set {
+            super.preferredMaxLayoutWidth = newValue
+            setNeedsLayout()
+        }
+    }
+    
+    /// 调整字体大小以适应宽度（兼容UILabel）
+    public func adjustFontSizeToFitWidth() {
+        guard let currentFont = font, let text = text, !text.isEmpty else { return }
+        
+        let minFontSize: CGFloat = 10.0
+        let maxFontSize: CGFloat = currentFont.pointSize
+        var bestFontSize = maxFontSize
+        
+        for fontSize in stride(from: maxFontSize, to: minFontSize, by: -1.0) {
+            let testFont = currentFont.withSize(fontSize)
+            let textSize = (text as NSString).size(withAttributes: [.font: testFont])
+            
+            if textSize.width <= bounds.width && textSize.height <= bounds.height {
+                bestFontSize = fontSize
+                break
+            }
+        }
+        
+        font = currentFont.withSize(bestFontSize)
+    }
+    
+    /// 获取指定点的字符索引（类似UITextView）
+    public func characterIndex(at point: CGPoint) -> Int {
+        return highlightManager.characterIndex(at: point, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
+    }
+    
+    /// 获取指定字符索引的边界矩形（类似UITextView）
+    public func boundingRect(forCharacterAt index: Int) -> CGRect {
+        let range = NSRange(location: index, length: 1)
+        return highlightManager.boundingRect(for: range, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
+    }
+    
+    /// 获取指定范围的边界矩形（类似UITextView）
+    public func boundingRect(for range: NSRange) -> CGRect {
+        return highlightManager.boundingRect(for: range, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
+    }
+    
+    /// 添加排除路径
+    /// - Parameter path: 排除路径
+    public func addExclusionPath(_ path: TEExclusionPath) {
+        exclusionPathManager.addExclusionPath(path)
+        setNeedsLayout()
+        setNeedsDisplay()
+    }
+    
+    /// 移除排除路径
+    /// - Parameter path: 排除路径
+    public func removeExclusionPath(_ path: TEExclusionPath) {
+        exclusionPathManager.removeExclusionPath(path)
+        setNeedsLayout()
+        setNeedsDisplay()
+    }
+    
+    /// 清除所有排除路径
+    public func clearExclusionPaths() {
+        exclusionPathManager.clearExclusionPaths()
+        setNeedsLayout()
+        setNeedsDisplay()
+    }
+    
+    /// 选择所有文本
+    public func selectAll() {
+        selectionManager.selectAll()
+    }
+    
+    /// 清除选择
+    public func clearSelection() {
+        selectionManager.clearSelection()
+    }
+    
+    /// 获取选中的文本
+    /// - Returns: 选中的文本
+    public func selectedText() -> String? {
+        return selectionManager.selectedText()
+    }
+    
+    /// 复制选中的文本
+    public func copySelectedText() {
+        selectionManager.copySelectedText()
+    }
+    
     // MARK: - 私有方法
     
     /// 执行点击高亮逻辑
@@ -307,12 +485,22 @@ public final class TELabel: UILabel {
         }
     }
     
+    /// 更新选择管理器文本
+    /// - Parameter attributedText: 属性文本
+    private func updateSelectionManagerText(_ attributedText: NSAttributedString?) {
+        selectionManager.updateText(attributedText, layoutInfo: lastLayoutInfo)
+    }
+    
     /// 执行同步布局
     private func performSyncLayout() {
         guard let attributedText = attributedText else { return }
         
         let layoutInfo = layoutManager.layoutSynchronously(attributedText, size: bounds.size, options: layoutOptions)
         lastLayoutInfo = layoutInfo
+        
+        // 更新选择管理器布局信息
+        selectionManager.updateText(attributedText, layoutInfo: layoutInfo)
+        
         rebuildAccessibilityElements(layoutInfo: layoutInfo)
         
         // 这里可以更新内部布局状态
@@ -330,6 +518,10 @@ public final class TELabel: UILabel {
                 // 这里可以更新内部布局状态
                 TETextEngine.shared.logDebug("执行异步布局完成: size=\(self.bounds.size), lines=\(layoutInfo.lineCount)", category: "ui")
                 self.lastLayoutInfo = layoutInfo
+                
+                // 更新选择管理器布局信息
+                self.selectionManager.updateText(self.attributedText, layoutInfo: layoutInfo)
+                
                 self.rebuildAccessibilityElements(layoutInfo: layoutInfo)
             }
         }
@@ -373,4 +565,102 @@ extension TELabel: TEAsyncLayerDelegate {
         drawAttachments(in: context, rect: CGRect(origin: .zero, size: size))
     }
 }
+
+// MARK: - UILabel API 兼容性扩展
+
+extension TELabel {
+    
+    /// 垂直文本对齐（MPITextKit兼容）
+    public enum TextVerticalAlignment {
+        case top
+        case center
+        case bottom
+    }
+    
+    /// 垂直文本对齐
+    public var textVerticalAlignment: TextVerticalAlignment {
+        get {
+            return objc_getAssociatedObject(self, &textVerticalAlignmentKey) as? TextVerticalAlignment ?? .center
+        }
+        set {
+            objc_setAssociatedObject(self, &textVerticalAlignmentKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 文本容器内边距（MPITextKit兼容）
+    public var textContainerInset: UIEdgeInsets {
+        get {
+            return objc_getAssociatedObject(self, &textContainerInsetKey) as? UIEdgeInsets ?? .zero
+        }
+        set {
+            objc_setAssociatedObject(self, &textContainerInsetKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 截断标记（MPITextKit兼容）
+    public var truncationAttributedToken: NSAttributedString? {
+        get {
+            return objc_getAssociatedObject(self, &truncationAttributedTokenKey) as? NSAttributedString
+        }
+        set {
+            objc_setAssociatedObject(self, &truncationAttributedTokenKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 额外截断消息（MPITextKit兼容）
+    public var additionalTruncationAttributedMessage: NSAttributedString? {
+        get {
+            return objc_getAssociatedObject(self, &additionalTruncationAttributedMessageKey) as? NSAttributedString
+        }
+        set {
+            objc_setAssociatedObject(self, &additionalTruncationAttributedMessageKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            setNeedsLayout()
+            setNeedsDisplay()
+        }
+    }
+    
+    /// 是否启用调试模式
+    public var isDebugModeEnabled: Bool {
+        get {
+            return objc_getAssociatedObject(self, &isDebugModeEnabledKey) as? Bool ?? false
+        }
+        set {
+            objc_setAssociatedObject(self, &isDebugModeEnabledKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            if newValue {
+                enableDebugMode()
+            } else {
+                disableDebugMode()
+            }
+        }
+    }
+    
+    /// 是否启用性能分析
+    public var isPerformanceProfilingEnabled: Bool {
+        get {
+            return objc_getAssociatedObject(self, &isPerformanceProfilingEnabledKey) as? Bool ?? false
+        }
+        set {
+            objc_setAssociatedObject(self, &isPerformanceProfilingEnabledKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            if newValue {
+                enablePerformanceProfiling()
+            } else {
+                disablePerformanceProfiling()
+            }
+        }
+    }
+}
+
+// 关联对象键
+private var textVerticalAlignmentKey: UInt8 = 0
+private var textContainerInsetKey: UInt8 = 0
+private var truncationAttributedTokenKey: UInt8 = 0
+private var additionalTruncationAttributedMessageKey: UInt8 = 0
+private var isDebugModeEnabledKey: UInt8 = 0
+private var isPerformanceProfilingEnabledKey: UInt8 = 0
 #endif

@@ -11,6 +11,10 @@
 🔧 **易于集成** - Swift Package Manager 支持，一行代码集成
 📊 **企业级** - 内置性能监控、内存优化和错误处理
 🛡️ **安全日志** - 集成 FMLogger，提供完整的日志和调试支持
+🎯 **文本选择** - 完整的文本选择管理器，支持范围选择、复制和编辑菜单
+🔄 **排除路径** - 灵活的文本排除路径系统，支持复杂几何形状和内外排除模式
+🔍 **调试可视化** - 强大的调试工具，可视化显示基线、行片段、字形边界等
+📈 **性能分析** - 详细的性能分析器，监控布局、渲染和内存使用指标
 
 ## 系统要求
 
@@ -204,6 +208,129 @@ do {
 engine.stop()
 ```
 
+### 文本选择管理
+
+```swift
+// 创建文本选择管理器
+let selectionManager = TETextSelectionManager()
+selectionManager.setupContainerView(myTextView)
+
+// 启用文本选择
+selectionManager.isSelectionEnabled = true
+selectionManager.selectionColor = .systemBlue
+
+// 监听选择变化
+selectionManager.delegate = self
+
+// 扩展 UIViewController 以支持 TETextSelectionManagerDelegate
+extension ViewController: TETextSelectionManagerDelegate {
+    func selectionManager(_ manager: TETextSelectionManager, didChangeSelection range: TETextSelectionRange?) {
+        if let range = range {
+            print("选择范围: \(range.location) - \(range.location + range.length)")
+        } else {
+            print("没有选择")
+        }
+    }
+    
+    func selectionManager(_ manager: TETextSelectionManager, shouldChangeSelection range: TETextSelectionRange?) -> Bool {
+        // 可以在这里实现自定义的选择逻辑
+        return true
+    }
+}
+```
+
+### 排除路径
+
+```swift
+// 创建排除路径
+let exclusionPath = TEExclusionPath(rect: CGRect(x: 50, y: 50, width: 100, height: 100))
+
+// 创建圆形排除路径
+let circlePath = TEExclusionPath.circle(center: CGPoint(x: 150, y: 150), radius: 50)
+
+// 创建椭圆排除路径
+let ellipsePath = TEExclusionPath.ellipse(in: CGRect(x: 200, y: 200, width: 150, height: 80))
+
+// 创建自定义路径
+let customPath = UIBezierPath()
+customPath.move(to: CGPoint(x: 0, y: 0))
+customPath.addLine(to: CGPoint(x: 100, y: 0))
+customPath.addLine(to: CGPoint(x: 50, y: 100))
+customPath.closePath()
+let customExclusionPath = TEExclusionPath(path: customPath, type: .inside)
+
+// 应用排除路径到文本布局
+let layout = TETextLayout()
+layout.exclusionPaths = [exclusionPath, circlePath, ellipsePath]
+```
+
+### 调试可视化
+
+```swift
+// 启用调试模式
+TETextDebugger.shared.enableDebugging()
+
+// 配置调试选项
+var debugOptions = TETextDebugOptions()
+debugOptions.showBaselines = true
+debugOptions.baselineColor = .red
+debugOptions.showLineFragments = true
+debugOptions.showExclusionPaths = true
+debugOptions.exclusionPathColor = .purple
+debugOptions.showSelection = true
+debugOptions.selectionColor = .systemYellow
+
+// 应用调试选项
+TETextDebugger.shared.updateOptions(debugOptions)
+
+// 调试特定视图
+TETextDebugger.shared.debugLabel(myLabel)
+TETextDebugger.shared.debugTextView(myTextView)
+
+// 获取调试信息
+let debugInfo = TETextDebugger.shared.getDebugInfo(for: myTextView)
+print("布局信息: \(debugInfo.layoutInfo)")
+print("性能信息: \(debugInfo.performanceInfo)")
+print("排除路径信息: \(debugInfo.exclusionPathInfo)")
+```
+
+### 性能分析
+
+```swift
+// 启用性能分析
+TEPerformanceProfiler.shared.startProfiling()
+
+// 配置分析选项
+var profilingOptions = TEProfilingOptions()
+profilingOptions.enableLayoutProfiling = true
+profilingOptions.enableRenderProfiling = true
+profilingOptions.enableMemoryProfiling = true
+profilingOptions.reportingInterval = 1.0 // 每秒报告一次
+
+// 应用分析选项
+TEPerformanceProfiler.shared.updateOptions(profilingOptions)
+
+// 分析文本布局性能
+let layoutMetrics = TEPerformanceProfiler.shared.profileLayout(attributedString, containerSize: CGSize(width: 300, height: 200))
+print("布局时间: \(layoutMetrics.layoutTime) 秒")
+print("行数: \(layoutMetrics.lineCount)")
+print("字符数: \(layoutMetrics.characterCount)")
+print("缓存命中: \(layoutMetrics.cacheHit)")
+
+// 分析文本渲染性能
+let renderMetrics = TEPerformanceProfiler.shared.profileRender(textLayout, in: graphicsContext)
+print("渲染时间: \(renderMetrics.renderTime) 秒")
+print("像素数: \(renderMetrics.pixelCount)")
+print("绘制调用: \(renderMetrics.drawCallCount)")
+
+// 获取整体性能报告
+let performanceReport = TEPerformanceProfiler.shared.generateReport()
+print("平均布局时间: \(performanceReport.averageLayoutTime)")
+print("平均渲染时间: \(performanceReport.averageRenderTime)")
+print("总内存使用: \(performanceReport.totalMemoryUsage)")
+print("平均FPS: \(performanceReport.averageFPS)")
+```
+
 ## 架构设计
 
 TextEngineKit 采用模块化架构设计，包含以下核心模块：
@@ -224,6 +351,10 @@ TextEngineKit 采用模块化架构设计，包含以下核心模块：
 - `TEHighlightManager` - 文本高亮管理器
 - `TEClipboardManager` - 剪贴板管理器
 - `TEPerformanceMonitor` - 性能监控器
+- `TETextSelectionManager` - 文本选择管理器
+- `TEExclusionPath` - 排除路径系统
+- `TETextDebugger` - 调试可视化工具
+- `TEPerformanceProfiler` - 性能分析器
 
 ## 性能优化
 
@@ -366,6 +497,139 @@ TextEngineKit 扩展了 `NSAttributedString` 支持以下属性：
 - `.textBackground` - 文本背景
 - `.textAttachment` - 文本附件
 - `.textHighlight` - 文本高亮
+
+### 新功能 API
+
+#### TETextSelectionManager
+文本选择管理器，提供完整的文本选择功能。
+
+```swift
+public final class TETextSelectionManager {
+    public weak var delegate: TETextSelectionManagerDelegate?
+    public var selectedRange: TETextSelectionRange? { get }
+    public var isSelectionEnabled: Bool
+    public var selectionColor: UIColor
+    
+    public func setupContainerView(_ containerView: UIView)
+    public func setSelection(range: TETextSelectionRange?)
+    public func selectAll()
+    public func clearSelection()
+    public func copySelectedText() -> String?
+}
+```
+
+#### TEExclusionPath
+排除路径系统，支持复杂几何形状的文本布局避让。
+
+```swift
+public struct TEExclusionPath {
+    public enum ExclusionType {
+        case inside  // 排除路径内部区域
+        case outside // 排除路径外部区域
+    }
+    
+    public let path: UIBezierPath
+    public let padding: UIEdgeInsets
+    public let type: ExclusionType
+    
+    public init(path: UIBezierPath, padding: UIEdgeInsets = .zero, type: ExclusionType = .inside)
+    public static func rect(_ rect: CGRect, padding: UIEdgeInsets = .zero, type: ExclusionType = .inside) -> TEExclusionPath
+    public static func circle(center: CGPoint, radius: CGFloat, padding: UIEdgeInsets = .zero, type: ExclusionType = .inside) -> TEExclusionPath
+    public static func ellipse(in rect: CGRect, padding: UIEdgeInsets = .zero, type: ExclusionType = .inside) -> TEExclusionPath
+    
+    public func contains(_ point: CGPoint) -> Bool
+    public var paddedBounds: CGRect { get }
+}
+```
+
+#### TETextDebugger
+调试可视化工具，提供文本布局的详细调试信息。
+
+```swift
+public final class TETextDebugger {
+    public static let shared: TETextDebugger
+    public var options: TETextDebugOptions
+    
+    public func enableDebugging()
+    public func disableDebugging()
+    public func updateOptions(_ options: TETextDebugOptions)
+    public func debugLabel(_ label: TELabel)
+    public func debugTextView(_ textView: TETextView)
+    public func getDebugInfo(for view: UIView) -> TETextDebugInfo
+}
+
+public struct TETextDebugOptions {
+    public var showBaselines: Bool
+    public var baselineColor: UIColor
+    public var showLineFragments: Bool
+    public var lineFragmentBorderColor: UIColor
+    public var showGlyphs: Bool
+    public var glyphBorderColor: UIColor
+    public var showExclusionPaths: Bool
+    public var exclusionPathColor: UIColor
+    public var showSelection: Bool
+    public var selectionColor: UIColor
+    public var showAttachments: Bool
+    public var attachmentColor: UIColor
+    public var showHighlights: Bool
+    public var highlightColor: UIColor
+    public var lineWidth: CGFloat
+    public var debugFontSize: CGFloat
+    public var debugTextColor: UIColor
+}
+```
+
+#### TEPerformanceProfiler
+性能分析器，提供详细的性能监控和分析功能。
+
+```swift
+public final class TEPerformanceProfiler {
+    public static let shared: TEPerformanceProfiler
+    public weak var delegate: TEPerformanceProfilerDelegate?
+    public var options: TEProfilingOptions
+    
+    public func startProfiling()
+    public func stopProfiling()
+    public func updateOptions(_ options: TEProfilingOptions)
+    public func profileLayout(_ attributedString: NSAttributedString, containerSize: CGSize) -> TEPerformanceMetrics.LayoutMetrics
+    public func profileRender(_ layout: TETextLayout, in context: CGContext) -> TEPerformanceMetrics.RenderMetrics
+    public func generateReport() -> TEPerformanceReport
+}
+
+public struct TEProfilingOptions {
+    public var enableLayoutProfiling: Bool
+    public var enableRenderProfiling: Bool
+    public var enableMemoryProfiling: Bool
+    public var reportingInterval: TimeInterval
+}
+
+public struct TEPerformanceMetrics {
+    public struct LayoutMetrics {
+        public let layoutTime: TimeInterval
+        public let lineCount: Int
+        public let glyphCount: Int
+        public let characterCount: Int
+        public let cacheHit: Bool
+        public let memoryUsage: Int
+    }
+    
+    public struct RenderMetrics {
+        public let renderTime: TimeInterval
+        public let pixelCount: Int
+        public let drawCallCount: Int
+        public let memoryUsage: Int
+        public let gpuUsage: Double
+    }
+    
+    public struct OverallMetrics {
+        public let totalTime: TimeInterval
+        public let fps: Double
+        public let cpuUsage: Double
+        public let memoryUsage: Int
+        public let energyUsage: Double
+    }
+}
+```
 
 ## 性能优化建议
 
