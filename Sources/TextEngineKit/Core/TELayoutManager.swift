@@ -601,7 +601,7 @@ public final class TELayoutInfo: NSObject {
         var maxX: CGFloat = -.greatestFiniteMagnitude
         var maxY: CGFloat = -.greatestFiniteMagnitude
         
-        for (index, line) in lines.enumerated() {
+        for (index, _) in lines.enumerated() {
             let rect = rectForLine(at: index)
             minX = min(minX, rect.minX)
             minY = min(minY, rect.minY)

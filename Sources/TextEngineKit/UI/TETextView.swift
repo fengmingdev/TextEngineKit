@@ -18,7 +18,7 @@ public final class TETextView: UITextView {
     // MARK: - 属性
     
     /// 富文本布局管理器
-    private let layoutManager = TELayoutManager()
+    private let teLayoutManager = TELayoutManager()
     
     /// 富文本渲染器
     private let renderer = TETextRenderer()
@@ -37,6 +37,10 @@ public final class TETextView: UITextView {
     public var onLinkOpen: ((Foundation.URL) -> Void)?
     /// 复制回调
     public var onCopy: ((String) -> Void)?
+    /// 查看附件回调
+    public var onAttachmentView: ((TETextAttachment) -> Void)?
+    /// 保存附件回调
+    public var onAttachmentSave: ((TETextAttachment) -> Void)?
     private var lastLayoutInfo: TELayoutInfo?
     
     /// 是否启用异步布局
@@ -58,7 +62,7 @@ public final class TETextView: UITextView {
     public var layoutOptions: TELayoutOptions = []
     
     /// 文本容器
-    public var textContainer: TETextContainer?
+    public var teTextContainer: TETextContainer?
     
     /// 渲染选项
     public var renderOptions: TERenderOptions = .default
@@ -129,7 +133,7 @@ public final class TETextView: UITextView {
     }
     
     /// 撤销管理器
-    private let undoManager = TEUndoManager()
+    private let teUndoManager = TEUndoManager()
     
     /// 剪贴板管理器
     private let clipboardManager = TEClipboardManager()
@@ -170,7 +174,7 @@ public final class TETextView: UITextView {
         }
         
         // 设置撤销管理器
-        undoManager.delegate = self
+        teUndoManager.delegate = self
         
         // 添加通知监听
         setupNotifications()
@@ -264,7 +268,7 @@ public final class TETextView: UITextView {
         let newText = (self.text as NSString).replacingCharacters(in: NSRange(location: location, length: 0), with: text)
         
         if newText.count <= maxLength {
-            undoManager.registerUndo(with: self.text, location: selectedRange.location)
+            teUndoManager.registerUndo(with: self.text, location: selectedRange.location)
             self.text = newText
             selectedRange = NSRange(location: location + text.count, length: 0)
         }
@@ -276,7 +280,7 @@ public final class TETextView: UITextView {
         guard range.location >= 0 && range.location + range.length <= text.count else { return }
         
         let deletedText = (text as NSString).substring(with: range)
-        undoManager.registerUndo(with: deletedText, location: range.location, isDeletion: true)
+        teUndoManager.registerUndo(with: deletedText, location: range.location, isDeletion: true)
         
         let newText = (text as NSString).replacingCharacters(in: range, with: "")
         self.text = newText
@@ -336,13 +340,13 @@ public final class TETextView: UITextView {
     }
     
     /// 撤销操作
-    public func undo() {
-        undoManager.undo()
+    @objc public func undo() {
+        teUndoManager.undo()
     }
     
     /// 重做操作
-    public func redo() {
-        undoManager.redo()
+    @objc public func redo() {
+        teUndoManager.redo()
     }
     
     /// 复制选中文本
@@ -354,6 +358,15 @@ public final class TETextView: UITextView {
         
         TETextEngine.shared.logDebug("复制文本: length=\(selectedText.count)", category: "clipboard")
     }
+
+    private func plainTextForRange(_ range: NSRange) -> String {
+        let ns = self.text as NSString
+        let maxLen = ns.length
+        let loc = max(0, min(range.location, maxLen))
+        let len = max(0, min(range.length, maxLen - loc))
+        if len == 0 { return "" }
+        return ns.substring(with: NSRange(location: loc, length: len))
+    }
     
     /// 粘贴剪贴板内容
     public func pasteFromClipboard() {
@@ -362,7 +375,7 @@ public final class TETextView: UITextView {
         let newText = (text as NSString).replacingCharacters(in: selectedRange, with: pastedText)
         
         if newText.count <= maxLength {
-            undoManager.registerUndo(with: text, location: selectedRange.location)
+            teUndoManager.registerUndo(with: text, location: selectedRange.location)
             text = newText
             selectedRange = NSRange(location: selectedRange.location + pastedText.count, length: 0)
             
@@ -373,7 +386,7 @@ public final class TETextView: UITextView {
     /// 获取布局统计信息
     /// - Returns: 统计信息
     public func getLayoutStatistics() -> TELayoutStatistics {
-        return layoutManager.getStatistics()
+        return teLayoutManager.getStatistics()
     }
     
     /// 获取渲染统计信息
@@ -387,10 +400,10 @@ public final class TETextView: UITextView {
     ///   - center: 圆心
     ///   - radius: 半径
     public func setCircularTextContainer(center: CGPoint, radius: CGFloat) {
-        if textContainer == nil {
-            textContainer = TETextContainer()
+        if teTextContainer == nil {
+            teTextContainer = TETextContainer()
         }
-        textContainer?.setCircularPath(center: center, radius: radius)
+        teTextContainer?.setCircularPath(center: center, radius: radius)
         setNeedsLayout()
     }
     
@@ -399,10 +412,10 @@ public final class TETextView: UITextView {
     ///   - rect: 矩形
     ///   - cornerRadius: 圆角半径
     public func setRoundedRectTextContainer(_ rect: CGRect, cornerRadius: CGFloat) {
-        if textContainer == nil {
-            textContainer = TETextContainer()
+        if teTextContainer == nil {
+            teTextContainer = TETextContainer()
         }
-        textContainer?.setRoundedRectPath(rect, cornerRadius: cornerRadius)
+        teTextContainer?.setRoundedRectPath(rect, cornerRadius: cornerRadius)
         setNeedsLayout()
     }
     
@@ -410,18 +423,18 @@ public final class TETextView: UITextView {
     /// - Parameter bezierPath: 贝塞尔路径
     #if canImport(UIKit)
     public func setBezierTextContainer(_ bezierPath: UIBezierPath) {
-        if textContainer == nil {
-            textContainer = TETextContainer()
+        if teTextContainer == nil {
+            teTextContainer = TETextContainer()
         }
-        textContainer?.setBezierPath(bezierPath)
+        teTextContainer?.setBezierPath(bezierPath)
         setNeedsLayout()
     }
     #elseif canImport(AppKit)
     public func setBezierTextContainer(_ bezierPath: NSBezierPath) {
-        if textContainer == nil {
-            textContainer = TETextContainer()
+        if teTextContainer == nil {
+            teTextContainer = TETextContainer()
         }
-        textContainer?.setBezierPath(bezierPath)
+        teTextContainer?.setBezierPath(bezierPath)
         setNeedsLayout()
     }
     #endif
@@ -429,29 +442,29 @@ public final class TETextView: UITextView {
     /// 添加排除路径
     /// - Parameter path: 排除路径
     public func addExclusionPath(_ path: CGPath) {
-        if textContainer == nil {
-            textContainer = TETextContainer()
+        if teTextContainer == nil {
+            teTextContainer = TETextContainer()
         }
-        textContainer?.addExclusionPath(path)
+        teTextContainer?.addExclusionPath(path)
         setNeedsLayout()
     }
     
     /// 清除所有排除路径
     public func clearExclusionPaths() {
-        textContainer?.clearExclusionPaths()
+        teTextContainer?.clearExclusionPaths()
         setNeedsLayout()
     }
     
     /// 重置为默认矩形文本容器
     public func resetToDefaultTextContainer() {
-        textContainer?.resetToDefaultPath()
+        teTextContainer?.resetToDefaultPath()
         setNeedsLayout()
     }
     
     /// 获取文本容器统计信息
     /// - Returns: 统计信息
     public func getTextContainerStatistics() -> TETextContainerStatistics? {
-        return textContainer?.getStatistics()
+        return teTextContainer?.getStatistics()
     }
     
     // MARK: - 私有方法
@@ -461,21 +474,21 @@ public final class TETextView: UITextView {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(textDidChange),
-            name: UITextViewTextDidChangeNotification,
+            name: UITextView.textDidChangeNotification,
             object: self
         )
         
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(textDidBeginEditing),
-            name: UITextViewTextDidBeginEditingNotification,
+            name: UITextView.textDidBeginEditingNotification,
             object: self
         )
         
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(textDidEndEditing),
-            name: UITextViewTextDidEndEditingNotification,
+            name: UITextView.textDidEndEditingNotification,
             object: self
         )
     }
@@ -587,10 +600,10 @@ public final class TETextView: UITextView {
         guard let attributedText = attributedText else { return }
         
         let layoutInfo: TELayoutInfo
-        if let container = textContainer {
-            layoutInfo = layoutManager.layoutSynchronously(attributedText, container: container, options: layoutOptions)
+        if let container = teTextContainer {
+            layoutInfo = teLayoutManager.layoutSynchronously(attributedText, container: container, options: layoutOptions)
         } else {
-            layoutInfo = layoutManager.layoutSynchronously(attributedText, size: bounds.size, options: layoutOptions)
+            layoutInfo = teLayoutManager.layoutSynchronously(attributedText, size: bounds.size, options: layoutOptions)
         }
         lastLayoutInfo = layoutInfo
         rebuildAccessibilityElements(layoutInfo: layoutInfo)
@@ -602,8 +615,8 @@ public final class TETextView: UITextView {
     private func performAsyncLayout() {
         guard let attributedText = attributedText else { return }
         
-        if let container = textContainer {
-            layoutManager.layoutAsynchronously(attributedText, container: container, options: layoutOptions) { [weak self] layoutInfo in
+        if let container = teTextContainer {
+            teLayoutManager.layoutAsynchronously(attributedText, container: container, options: layoutOptions) { [weak self] layoutInfo in
                 guard let self = self else { return }
                 
                 DispatchQueue.main.async {
@@ -613,7 +626,7 @@ public final class TETextView: UITextView {
                 }
             }
         } else {
-            layoutManager.layoutAsynchronously(attributedText, size: bounds.size, options: layoutOptions) { [weak self] layoutInfo in
+            teLayoutManager.layoutAsynchronously(attributedText, size: bounds.size, options: layoutOptions) { [weak self] layoutInfo in
                 guard let self = self else { return }
                 
                 DispatchQueue.main.async {
@@ -658,7 +671,7 @@ public final class TETextView: UITextView {
             else if let s = value as? String { url = Foundation.URL(string: s) }
             else { url = nil }
             guard let u = url else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
+            let rect = boundingRectFor(range: range, attributed: attributed, layoutInfo: layoutInfo)
             let linkElem = TEAccessibilityLinkElement(accessibilityContainer: self, url: u, copyText: (attributed.string as NSString).substring(with: range))
             linkElem.accessibilityTraits = [.link]
             linkElem.accessibilityLabel = (attributed.string as NSString).substring(with: range)
@@ -669,7 +682,7 @@ public final class TETextView: UITextView {
         }
         attributed.enumerateAttribute(TEAttributeKey.textAttachment, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
             guard let attachment = value as? TETextAttachment else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
+            let rect = boundingRectFor(range: range, attributed: attributed, layoutInfo: layoutInfo)
             let elem = TEAccessibilityAttachmentElement(accessibilityContainer: self, attachment: attachment)
             elem.accessibilityTraits = [.image]
             elem.accessibilityLabel = "附件"
@@ -679,6 +692,30 @@ public final class TETextView: UITextView {
             elements.append(elem)
         }
         self.accessibilityElements = elements
+    }
+    
+    private func boundingRectFor(range: NSRange, attributed: NSAttributedString, layoutInfo: TELayoutInfo) -> CGRect {
+        var result: CGRect = .null
+        for (i, line) in layoutInfo.lines.enumerated() {
+            let origin = layoutInfo.lineOrigins[i]
+            let cfRuns = CTLineGetGlyphRuns(line) as NSArray
+            let runs = cfRuns as? [CTRun] ?? []
+            for run in runs {
+                let rr = CTRunGetStringRange(run)
+                let inter = NSIntersectionRange(NSRange(location: rr.location, length: rr.length), range)
+                if inter.length > 0 {
+                    var ascent: CGFloat = 0
+                    var descent: CGFloat = 0
+                    var leading: CGFloat = 0
+                    _ = CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading)
+                    var secondaryOffset: CGFloat = 0
+                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, &secondaryOffset)
+                    let rect = CGRect(x: origin.x + CGFloat(offset), y: origin.y - descent, width: CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), nil, nil, nil)), height: ascent + descent)
+                    result = result.union(rect)
+                }
+            }
+        }
+        return result.isNull ? .zero : result
     }
     
     /// 执行同步渲染
@@ -902,14 +939,14 @@ extension TETextView: UITextViewDelegate {
 
 extension TETextView: TEUndoManagerDelegate {
     
-    func undoManager(_ manager: TEUndoManager, didUndo text: String, at location: Int) {
+    public func undoManager(_ manager: TEUndoManager, didUndo text: String, at location: Int) {
         self.text = text
         selectedRange = NSRange(location: location, length: 0)
         
         TETextEngine.shared.logDebug("执行撤销操作", category: "undo")
     }
     
-    func undoManager(_ manager: TEUndoManager, didRedo text: String, at location: Int) {
+    public func undoManager(_ manager: TEUndoManager, didRedo text: String, at location: Int) {
         self.text = text
         selectedRange = NSRange(location: location, length: 0)
         

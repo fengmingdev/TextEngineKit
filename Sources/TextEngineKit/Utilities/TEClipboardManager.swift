@@ -327,7 +327,8 @@ public final class TEClipboardManager {
         }
         
         #if canImport(UIKit)
-        let pasteboard = UIPasteboard(name: UIPasteboard.Name(name), create: true)
+        let pasteboardOpt = UIPasteboard(name: UIPasteboard.Name(name), create: true)
+        let pasteboard = pasteboardOpt ?? UIPasteboard.general
         #elseif canImport(AppKit)
         let pasteboard = NSPasteboard(name: NSPasteboard.Name(name))
         #endif

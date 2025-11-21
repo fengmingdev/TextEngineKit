@@ -20,7 +20,13 @@ public typealias TEGraphicsImageRendererFormat = UIGraphicsImageRendererFormat
 public typealias TEUnderlineStyle = NSUnderlineStyle
 public typealias TEMutableParagraphStyle = NSMutableParagraphStyle
 public typealias TEView = UIView
-public typealias TEGraphicsGetCurrentContext = UIGraphicsGetCurrentContext
+public func TEGraphicsGetCurrentContext() -> CGContext? {
+    #if canImport(UIKit)
+    return UIGraphicsGetCurrentContext()
+    #elseif canImport(AppKit)
+    return NSGraphicsContext.current?.cgContext
+    #endif
+}
 public typealias TENSLayoutConstraint = NSLayoutConstraint
 public typealias TEUIView = UIView
 public typealias TECALayer = CALayer
@@ -45,6 +51,7 @@ public enum TEContentMode: Int {
 public typealias TEUIEdgeInsets = UIEdgeInsets
 public typealias TEGestureRecognizer = UIGestureRecognizer
 public typealias TELongPressGestureRecognizer = UILongPressGestureRecognizer
+public typealias TETapGestureRecognizer = UITapGestureRecognizer
 #elseif canImport(AppKit)
 import AppKit
 public typealias TEColor = NSColor
@@ -86,9 +93,6 @@ public class TEGraphicsImageRendererFormat: TEGraphicsRendererFormatProtocol {
 public typealias TEUnderlineStyle = NSUnderlineStyle
 public typealias TEMutableParagraphStyle = NSMutableParagraphStyle
 public typealias TEView = NSView
-public func TEGraphicsGetCurrentContext() -> CGContext? {
-    return NSGraphicsContext.current?.cgContext
-}
 public typealias TENSLayoutConstraint = NSLayoutConstraint
 public typealias TEUIView = NSView
 public typealias TECALayer = CALayer
@@ -114,13 +118,7 @@ public typealias TEUIEdgeInsets = NSEdgeInsets
 public typealias TEGestureRecognizer = NSGestureRecognizer
 public typealias TELongPressGestureRecognizer = NSPressGestureRecognizer
 
-public func TEGetCurrentGraphicsContext() -> CGContext? {
-    #if canImport(UIKit)
-    return UIGraphicsGetCurrentContext()
-    #elseif canImport(AppKit)
-    return NSGraphicsContext.current?.cgContext
-    #endif
-}
+// 移除平台分支中的重复定义，统一在文件后部提供跨平台实现
 
 public func TEPlatformFormat() -> any TEGraphicsRendererFormatProtocol {
     #if canImport(UIKit)
@@ -137,16 +135,18 @@ public func TEPlatformFormat() -> any TEGraphicsRendererFormatProtocol {
     #endif
 }
 
-public extension TEPlatform {
-    static func makeRendererFormat(scale: CGFloat, opaque: Bool, extendedRange: Bool) -> any TEGraphicsRendererFormatProtocol {
-        var format = TEPlatformFormat()
-        format.scale = scale
-        format.opaque = opaque
-        format.prefersExtendedRange = extendedRange
-        return format
-    }
-}
 #endif
+
+/// 获取当前图形上下文（跨平台）
+public func TEGetCurrentGraphicsContext() -> CGContext? {
+    #if canImport(UIKit)
+    return UIGraphicsGetCurrentContext()
+    #elseif canImport(AppKit)
+    return NSGraphicsContext.current?.cgContext
+    #else
+    return nil
+    #endif
+}
 
 /// 图形渲染器协议
 ///
@@ -181,13 +181,6 @@ public extension TEPlatform {
 /// }
 /// ```
 public protocol TEGraphicsRendererProtocol {
-    /// 渲染器格式关联类型
-    ///
-    /// 在不同平台上对应不同的格式类型：
-    /// - iOS: `UIGraphicsImageRendererFormat`
-    /// - macOS: `NSGraphicsRendererFormat`
-    associatedtype RendererFormat
-    
     /// 执行渲染操作
     ///
     /// 在指定的图形上下文中执行绘制操作，并返回渲染结果。
@@ -195,11 +188,6 @@ public protocol TEGraphicsRendererProtocol {
     /// - Parameter actions: 包含绘制操作的闭包，接收 `CGContext` 参数
     /// - Returns: 渲染后的图像对象
     func render(actions: (CGContext) -> Void) -> TEImage
-    
-    /// 渲染器格式
-    ///
-    /// 当前渲染器使用的格式配置，包括缩放比例、透明度等设置。
-    var format: RendererFormat { get }
 }
 
 /// 图形渲染器格式协议
@@ -252,7 +240,11 @@ public protocol TEGraphicsRendererFormatProtocol {
 
 #if canImport(UIKit)
 extension UIGraphicsImageRenderer: TEGraphicsRendererProtocol {
-    public typealias RendererFormat = UIGraphicsImageRendererFormat
+    public func render(actions: (CGContext) -> Void) -> TEImage {
+        return self.image { context in
+            actions(context.cgContext)
+        }
+    }
 }
 
 extension UIGraphicsImageRendererFormat: TEGraphicsRendererFormatProtocol {}
@@ -357,6 +349,23 @@ public struct TEPlatform {
     }
 }
 
+public extension TEPlatform {
+    static func makeRendererFormat(scale: CGFloat, opaque: Bool, extendedRange: Bool) -> any TEGraphicsRendererFormatProtocol {
+        #if canImport(UIKit)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = opaque
+        format.prefersExtendedRange = extendedRange
+        return format
+        #elseif canImport(AppKit)
+        let format = TEGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = opaque
+        return format
+        #endif
+    }
+}
+
 public extension TEColor {
     static func dynamicColor(light: TEColor, dark: TEColor) -> TEColor {
         #if canImport(UIKit)
@@ -427,7 +436,7 @@ public extension TEImage {
         #if canImport(UIKit)
         return (self as! UIImage).size
         #elseif canImport(AppKit)
-        return (self as! NSImage).size
+        return self.size
         #endif
     }
     

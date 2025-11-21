@@ -45,7 +45,7 @@ extension TELabel {
             else if let s = value as? String { url = URL(string: s) }
             else { url = nil }
             guard let url = url else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
+            let rect = boundingRectFor(range: range, attributed: attributed, layoutInfo: layoutInfo)
             let linkElem = TEAccessibilityLinkElement(accessibilityContainer: self, url: url, copyText: (attributed.string as NSString).substring(with: range))
             linkElem.accessibilityTraits = [.link]
             linkElem.accessibilityLabel = (attributed.string as NSString).substring(with: range)
@@ -56,7 +56,7 @@ extension TELabel {
         }
         attributed.enumerateAttribute(TEAttributeKey.textAttachment, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
             guard let attachment = value as? TETextAttachment else { return }
-            let rect = TETextHighlight().boundingRect(for: range, in: attributed, textRect: bounds, layoutInfo: layoutInfo)
+            let rect = boundingRectFor(range: range, attributed: attributed, layoutInfo: layoutInfo)
             let elem = TEAccessibilityAttachmentElement(accessibilityContainer: self, attachment: attachment)
             elem.accessibilityTraits = [.image]
             elem.accessibilityLabel = "附件"
@@ -66,6 +66,30 @@ extension TELabel {
             elements.append(elem)
         }
         self.accessibilityElements = elements
+    }
+    
+    private func boundingRectFor(range: NSRange, attributed: NSAttributedString, layoutInfo: TELayoutInfo) -> CGRect {
+        var result: CGRect = .null
+        for (i, line) in layoutInfo.lines.enumerated() {
+            let origin = layoutInfo.lineOrigins[i]
+            let cfRuns = CTLineGetGlyphRuns(line) as NSArray
+            let runs = cfRuns as? [CTRun] ?? []
+            for run in runs {
+                let rr = CTRunGetStringRange(run)
+                let inter = NSIntersectionRange(NSRange(location: rr.location, length: rr.length), range)
+                if inter.length > 0 {
+                    var ascent: CGFloat = 0
+                    var descent: CGFloat = 0
+                    var leading: CGFloat = 0
+                    let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading))
+                    var secondaryOffset: CGFloat = 0
+                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, &secondaryOffset)
+                    let rect = CGRect(x: origin.x + CGFloat(offset), y: origin.y - descent, width: width, height: ascent + descent)
+                    result = result.union(rect)
+                }
+            }
+        }
+        return result.isNull ? .zero : result
     }
 }
 #endif

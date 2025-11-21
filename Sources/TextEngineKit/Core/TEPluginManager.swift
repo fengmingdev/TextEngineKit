@@ -131,7 +131,7 @@ public actor TEPluginManager {
     /// 异步初始化插件管理器
     public func initialize() async {
         let logger: TETextLoggerProtocol = await TEContainer.shared.resolve(TETextLoggerProtocol.self)
-        await logger.log("插件管理器初始化完成", level: .info, category: "plugin", metadata: nil)
+        logger.log("插件管理器初始化完成", level: .info, category: "plugin", metadata: nil)
         await registerBuiltinExtensionPoints()
     }
     
@@ -146,7 +146,7 @@ public actor TEPluginManager {
         
         // 检查插件是否已加载
         if loadedPlugins[pluginId] != nil {
-            await logger.log("插件已加载: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
+            logger.log("插件已加载: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
             return
         }
         
@@ -171,7 +171,7 @@ public actor TEPluginManager {
                 ]
             )
             
-            await logger.log("插件加载成功: \(pluginId) (耗时: \(String(format: "%.3f", loadTime))s)", level: .info, category: "plugin", metadata: nil)
+            logger.log("插件加载成功: \(pluginId) (耗时: \(String(format: "%.3f", loadTime))s)", level: .info, category: "plugin", metadata: nil)
             
         } catch {
             let loadTime = CFAbsoluteTimeGetCurrent() - startTime
@@ -183,7 +183,7 @@ public actor TEPluginManager {
                 error: error
             )
             
-            await logger.log("插件加载失败: \(pluginId) - \(error.localizedDescription)", level: .error, category: "plugin", metadata: nil)
+            logger.log("插件加载失败: \(pluginId) - \(error.localizedDescription)", level: .error, category: "plugin", metadata: nil)
             throw TETextEngineError.pluginLoadFailure(pluginId: pluginId, reason: error.localizedDescription)
         }
     }
@@ -194,21 +194,21 @@ public actor TEPluginManager {
         let logger: TETextLoggerProtocol = await TEContainer.shared.resolve(TETextLoggerProtocol.self)
         
         guard let pluginInfo = loadedPlugins[pluginId] else {
-            await logger.log("尝试卸载未加载的插件: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
+            logger.log("尝试卸载未加载的插件: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
             return
         }
         
         pluginInfo.plugin.unload()
         loadedPlugins.removeValue(forKey: pluginId)
         
-        await logger.log("插件卸载成功: \(pluginId)", level: .info, category: "plugin", metadata: nil)
+        logger.log("插件卸载成功: \(pluginId)", level: .info, category: "plugin", metadata: nil)
     }
     
     /// 启动插件
     /// - Parameter pluginId: 插件标识符
     /// - Throws: 启动失败时抛出错误
     public func startPlugin(_ pluginId: String) async throws {
-        try await performPluginOperation(pluginId: pluginId, operation: { plugin in
+        await performPluginOperation(pluginId: pluginId, operation: { plugin in
             try plugin.start()
             return .started
         })
@@ -252,12 +252,12 @@ public actor TEPluginManager {
         let extensionPointId = extensionPoint.extensionPointId
         
         if extensionPoints[extensionPointId] != nil {
-            await logger.log("扩展点已存在: \(extensionPointId)", level: .warning, category: "plugin", metadata: nil)
+            logger.log("扩展点已存在: \(extensionPointId)", level: .warning, category: "plugin", metadata: nil)
             return
         }
         
         extensionPoints[extensionPointId] = extensionPoint
-        await logger.log("扩展点注册成功: \(extensionPointId)", level: .info, category: "plugin", metadata: nil)
+        logger.log("扩展点注册成功: \(extensionPointId)", level: .info, category: "plugin", metadata: nil)
     }
     
     /// 获取扩展点
@@ -279,7 +279,7 @@ public actor TEPluginManager {
         
         try extensionPoint.registerExtension(`extension`)
         let logger: TETextLoggerProtocol = await TEContainer.shared.resolve(TETextLoggerProtocol.self)
-        await logger.log("扩展注册成功: \(extensionPointId)", level: .info, category: "plugin", metadata: nil)
+        logger.log("扩展注册成功: \(extensionPointId)", level: .info, category: "plugin", metadata: nil)
     }
     
     // MARK: - 内置扩展点实现
@@ -422,7 +422,7 @@ public actor TEPluginManager {
         let logger: TETextLoggerProtocol = await TEContainer.shared.resolve(TETextLoggerProtocol.self)
         
         guard let pluginInfo = loadedPlugins[pluginId] else {
-            await logger.log("插件不存在: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
+            logger.log("插件不存在: \(pluginId)", level: .warning, category: "plugin", metadata: nil)
             return
         }
         
@@ -436,7 +436,7 @@ public actor TEPluginManager {
                 metadata: pluginInfo.metadata
             )
             
-            await logger.log("插件操作成功: \(pluginId) - \(newState.rawValue)", level: .info, category: "plugin", metadata: nil)
+            logger.log("插件操作成功: \(pluginId) - \(newState.rawValue)", level: .info, category: "plugin", metadata: nil)
             
         } catch {
             loadedPlugins[pluginId] = TEPluginInfo(
@@ -447,7 +447,7 @@ public actor TEPluginManager {
                 metadata: pluginInfo.metadata
             )
             
-            await logger.log("插件操作失败: \(pluginId) - \(error.localizedDescription)", level: .error, category: "plugin", metadata: nil)
+            logger.log("插件操作失败: \(pluginId) - \(error.localizedDescription)", level: .error, category: "plugin", metadata: nil)
         }
     }
 }

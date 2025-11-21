@@ -497,7 +497,7 @@ public extension TETextEngineError {
             case .critical:
                 logLevel = .critical
             }
-            await logger.log(message, level: logLevel, category: category, metadata: metadata)
+            logger.log(message, level: logLevel, category: category, metadata: metadata)
         }
     }
 }

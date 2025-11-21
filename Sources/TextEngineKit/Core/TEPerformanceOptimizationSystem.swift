@@ -583,7 +583,7 @@ public final class TEPerformanceOptimizationSystem {
     
     /// 生成优化建议
     private func generateRecommendations(from metricsAnalysis: [TEPerformanceMetric: TEPerformanceMetricAnalysis], bottlenecks: [TEPerformanceBottleneck]) -> [TEPerformanceRecommendation] {
-        var recommendations: [TEPerformanceRecommendation] = []
+        let recommendations: [TEPerformanceRecommendation] = []
         
         // 基于指标分析和瓶颈生成建议
         // 这里应该实现具体的建议生成逻辑

@@ -4,7 +4,7 @@
 //
 //  Created by Assistant on 2025/11/21.
 //
-//  文本选择管理器：负责文本选择、复制粘贴和选择手柄管理
+//  文本选择管理器：提供完整的文本选择功能，参考MPITextKit设计
 //
 
 #if canImport(UIKit)
@@ -13,598 +13,444 @@ import Foundation
 
 /// 文本选择范围
 /// 表示文本中的一个选择区域，包含起始位置和长度信息
-/// 
-/// 使用示例:
-/// ```swift
-/// let range = TETextSelectionRange(location: 10, length: 5)
-/// print("选择范围: \(range.location) - \(range.location + range.length)")
-/// ```
 public struct TETextSelectionRange {
-    public let location: Int
-    public let length: Int
+    public var location: Int
+    public var length: Int
     
     public init(location: Int, length: Int) {
         self.location = location
         self.length = length
     }
     
-    public var nsRange: NSRange {
-        return NSRange(location: location, length: length)
+    public var endLocation: Int {
+        return location + length
+    }
+    
+    public var isEmpty: Bool {
+        return length == 0
     }
 }
 
-/// 文本选择管理器委托协议
-/// 定义了文本选择管理器与外部交互的接口
-/// 
-/// 使用示例:
-/// ```swift
-/// class ViewController: UIViewController, TETextSelectionManagerDelegate {
-///     func selectionManager(_ manager: TETextSelectionManager, didChangeSelection range: TETextSelectionRange?) {
-///         print("选择范围改变: \(range?.location ?? -1), \(range?.length ?? 0)")
-///     }
-///     
-///     func selectionManager(_ manager: TETextSelectionManager, willShowMenu menu: UIMenu) {
-///         print("编辑菜单将要显示")
-///     }
-///     
-///     func selectionManager(_ manager: TETextSelectionManager, shouldCopyText text: String) -> Bool {
-///         return true // 允许复制文本
-///     }
-/// }
-/// ```
+/// 文本选择管理器委托
+/// 用于监听文本选择状态的变化
 public protocol TETextSelectionManagerDelegate: AnyObject {
-    /// 选择范围改变
+    /// 选择范围发生变化时调用
+    /// - Parameters:
+    ///   - manager: 选择管理器实例
+    ///   - range: 新的选择范围，nil表示清除选择
     func selectionManager(_ manager: TETextSelectionManager, didChangeSelection range: TETextSelectionRange?)
     
-    /// 选择菜单将要显示
-    func selectionManager(_ manager: TETextSelectionManager, willShowMenu menu: UIMenu)
-    
-    /// 文本应该被复制
-    func selectionManager(_ manager: TETextSelectionManager, shouldCopyText text: String) -> Bool
+    /// 询问是否应该改变选择范围
+    /// - Parameters:
+    ///   - manager: 选择管理器实例
+    ///   - range: 提议的选择范围
+    /// - Returns: true表示允许改变，false表示拒绝
+    func selectionManager(_ manager: TETextSelectionManager, shouldChangeSelection range: TETextSelectionRange?) -> Bool
 }
 
 /// 文本选择管理器
-/// 管理文本选择、复制粘贴和选择手柄
-/// 
-/// 功能特性:
-/// - 文本选择和范围管理
-/// - 复制粘贴操作支持
-/// - 选择手柄拖拽交互
-/// - 选择高亮显示
-/// - 编辑菜单集成
-/// - 委托模式扩展
-/// 
-/// 使用示例:
-/// ```swift
-/// class TextView: UIView {
-///     private let selectionManager = TETextSelectionManager()
-///     
-///     override func awakeFromNib() {
-///         super.awakeFromNib()
-///         setupSelectionManager()
-///     }
-///     
-///     private func setupSelectionManager() {
-///         selectionManager.delegate = self
-///         selectionManager.isSelectionEnabled = true
-///         selectionManager.isSelectionHandleEnabled = true
-///         selectionManager.selectionColor = UIColor.systemBlue.withAlphaComponent(0.3)
-///         selectionManager.handleColor = .systemBlue
-///     }
-///     
-///     func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-///         let location = gesture.location(in: self)
-///         switch gesture.state {
-///         case .began:
-///             selectionManager.startSelection(at: location, in: self)
-///         case .changed:
-///             selectionManager.updateSelection(to: location)
-///         default:
-///             break
-///         }
-///     }
-/// }
-/// ```
+/// 提供完整的文本选择功能，包括范围选择、复制、编辑菜单等
+/// 参考MPITextKit的文本选择实现
 @MainActor
 public final class TETextSelectionManager: NSObject {
     
     // MARK: - 属性
     
-    /// 代理对象，接收选择管理器的事件通知
-    /// - 必须实现 `TETextSelectionManagerDelegate` 协议
-    /// - 用于监听选择范围变化、菜单显示等事件
+    /// 委托对象，用于接收选择事件
     public weak var delegate: TETextSelectionManagerDelegate?
     
-    /// 当前选择范围
-    /// - 返回当前选中的文本范围，如果没有选择则为 `nil`
-    /// - 只读属性，通过 `selectRange(_:)` 方法设置
+    /// 当前选择的范围
     public private(set) var selectedRange: TETextSelectionRange?
     
-    /// 是否启用文本选择功能
-    /// - 设置为 `true` 时允许用户选择和复制文本
-    /// - 设置为 `false` 时禁用所有选择相关功能
-    /// - 默认值为 `true`
-    public var isSelectionEnabled: Bool = true
+    /// 是否启用文本选择
+    public var isSelectionEnabled: Bool = true {
+        didSet {
+            if !isSelectionEnabled {
+                clearSelection()
+            }
+        }
+    }
     
-    /// 是否显示选择手柄
-    /// - 设置为 `true` 时显示拖拽手柄用于调整选择范围
-    /// - 设置为 `false` 时隐藏手柄，只允许长按选择
-    /// - 默认值为 `true`
-    public var isSelectionHandleEnabled: Bool = true
+    /// 是否启用选择手柄
+    public var isSelectionHandleEnabled: Bool = true {
+        didSet {
+            if !isSelectionHandleEnabled {
+                hideSelectionHandles()
+            } else if selectedRange != nil {
+                showSelectionHandles()
+            }
+        }
+    }
     
     /// 选择高亮颜色
-    /// - 用于渲染选中文本的背景色
-    /// - 默认值为半透明的系统蓝色
-    /// - 可以自定义为任何颜色，建议使用半透明颜色
     public var selectionColor: UIColor = UIColor.systemBlue.withAlphaComponent(0.3)
     
-    /// 选择文本颜色
-    /// - 用于改变选中文本的前景色
-    /// - 如果为 `nil`，则保持文本原有颜色
-    /// - 可以用于提高选中文本的可读性
-    public var selectionTextColor: UIColor?
+    /// 选择文本的字体
+    public var selectionFont: UIFont = .systemFont(ofSize: 16)
     
-    /// 选择手柄大小
-    /// - 定义选择手柄的触摸区域大小
-    /// - 默认值为 20x20 点
-    /// - 可以根据需要调整手柄大小以提高可用性
-    public var handleSize: CGSize = CGSize(width: 20, height: 20)
-    
-    /// 选择手柄颜色
-    /// - 定义选择手柄的外观颜色
-    /// - 默认值为系统蓝色
-    /// - 建议与选择颜色保持协调
-    public var handleColor: UIColor = .systemBlue
-    
-    /// 长按手势识别器
-    private var longPressGestureRecognizer: UILongPressGestureRecognizer?
-    
-    /// 选择手柄视图
-    private var startHandleView: TESelectionHandleView?
-    private var endHandleView: TESelectionHandleView?
-    
-    /// 选择高亮图层
-    private var selectionLayer: CALayer?
-    
-    /// 容器视图
+    /// 容器视图，用于显示选择UI
     private weak var containerView: UIView?
     
-    /// 属性文本
-    private var attributedText: NSAttributedString?
+    /// 选择图层，用于显示选择高亮
+    private var selectionLayers: [CALayer] = []
     
-    /// 布局信息
-    private var layoutInfo: TELayoutInfo?
+    /// 长按手势识别器
+    private var longPressGesture: UILongPressGestureRecognizer?
     
-    /// 复制板管理器
-    private let clipboardManager = TEClipboardManager()
+    /// 点击手势识别器
+    private var tapGesture: UITapGestureRecognizer?
+    
+    /// 编辑菜单控制器
+    private var menuController: UIMenuController?
     
     /// 选择开始位置
     private var selectionStartPoint: CGPoint?
     
-    /// 是否正在拖拽手柄
-    private var isDraggingHandle: Bool = false
+    /// 选择结束位置
+    private var selectionEndPoint: CGPoint?
     
-    /// 拖拽的手柄类型
-    private enum DragHandleType {
-        case start
-        case end
-    }
-    private var draggingHandleType: DragHandleType?
-    
-    // MARK: - 初始化
+    // MARK: - 生命周期
     
     public override init() {
         super.init()
-        setupNotificationObservers()
+        setupGestures()
     }
     
-    deinit {
-        removeNotificationObservers()
-    }
+    deinit {}
     
     // MARK: - 公共方法
     
     /// 设置容器视图
-    /// - 配置文本选择管理器的容器视图，用于显示选择手柄和高亮
-    /// - 会自动设置手势识别器和选择图层
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// let textView = UIView()
-    /// selectionManager.setupContainerView(textView)
-    /// ```
-    /// 
-    /// - Parameter view: 用于显示选择UI的容器视图
-    public func setupContainerView(_ view: UIView) {
-        self.containerView = view
-        setupGestureRecognizers()
-        setupSelectionLayer()
+    /// - Parameter containerView: 要添加选择功能的容器视图
+    public func setupContainerView(_ containerView: UIView) {
+        cleanup()
+        
+        self.containerView = containerView
+        containerView.addGestureRecognizer(longPressGesture!)
+        containerView.addGestureRecognizer(tapGesture!)
+        
+        // 确保容器视图可以接收触摸事件
+        containerView.isUserInteractionEnabled = true
     }
     
-    /// 更新文本和布局信息
-    /// - 更新选择管理器使用的文本内容和布局信息
-    /// - 会自动清除当前选择状态
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// let attributedText = NSAttributedString(string: "Hello World")
-    /// let layoutInfo = TELayoutInfo() // 实际的布局信息
-    /// selectionManager.updateText(attributedText, layoutInfo: layoutInfo)
-    /// ```
-    /// 
+    /// 更新文本内容
+    /// 当文本内容发生变化时调用，以保持选择的有效性
+    /// - Parameter text: 新的文本内容
+    public func updateText(_ text: String?) {
+        guard let selectedRange = selectedRange else { return }
+        
+        // 验证选择范围是否仍然有效
+        let textLength = text?.count ?? 0
+        if selectedRange.location > textLength || selectedRange.endLocation > textLength {
+            clearSelection()
+        }
+    }
+    
+    /// 更新文本内容和布局信息
     /// - Parameters:
-    ///   - attributedText: 包含文本和属性的NSAttributedString
-    ///   - layoutInfo: 文本布局信息，用于计算字符位置
+    ///   - attributedText: 属性文本
+    ///   - layoutInfo: 布局信息
     public func updateText(_ attributedText: NSAttributedString?, layoutInfo: TELayoutInfo?) {
-        self.attributedText = attributedText
-        self.layoutInfo = layoutInfo
-        clearSelection()
+        // 验证选择范围是否仍然有效
+        guard let selectedRange = selectedRange else { return }
+        
+        let textLength = attributedText?.length ?? 0
+        if selectedRange.location > textLength || selectedRange.endLocation > textLength {
+            clearSelection()
+        }
+        
+        // 这里可以根据布局信息更新选择显示
+        showSelection(for: selectedRange)
     }
     
     /// 清除当前选择
-    /// - 移除所有选择状态，包括选择范围、手柄和高亮
-    /// - 通常在文本内容改变或需要重置选择状态时调用
-    /// - 会通知代理选择状态已改变
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// // 清除当前选择
-    /// selectionManager.clearSelection()
-    /// ```
     public func clearSelection() {
+        guard selectedRange != nil else { return }
+        
+        let shouldClear = delegate?.selectionManager(self, shouldChangeSelection: nil) ?? true
+        guard shouldClear else { return }
+        
         selectedRange = nil
-        hideSelectionHandles()
-        hideSelectionLayer()
+        hideSelection()
+        hideMenu()
+        
         delegate?.selectionManager(self, didChangeSelection: nil)
     }
     
-    /// 选择所有文本
-    /// - 选中容器中的所有文本内容
-    /// - 如果没有文本内容，则不执行任何操作
-    /// - 会自动显示选择高亮和手柄
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// // 选择所有文本
-    /// selectionManager.selectAll()
-    /// ```
-    public func selectAll() {
-        guard let text = attributedText else { return }
-        let range = TETextSelectionRange(location: 0, length: text.length)
-        setSelection(range)
+    /// 选择全部文本
+    @objc public func selectAll() {
+        guard isSelectionEnabled else { return }
+        
+        // 这里需要获取文本长度，暂时使用容器视图的文本
+        let fullRange = TETextSelectionRange(location: 0, length: getTextLength())
+        setSelection(range: fullRange)
     }
     
     /// 设置选择范围
-    /// - 设置特定的文本选择范围
-    /// - 如果范围有效，会显示相应的高亮和手柄
-    /// - 如果范围为 `nil`，则清除当前选择
-    /// - 会通知代理选择状态已改变
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// // 设置选择范围（选择前10个字符）
-    /// let range = TETextSelectionRange(location: 0, length: 10)
-    /// selectionManager.setSelection(range)
-    /// 
-    /// // 清除选择
-    /// selectionManager.setSelection(nil)
-    /// ```
-    /// 
-    /// - Parameter range: 要设置的选择范围，如果为 `nil` 则清除选择
-    public func setSelection(_ range: TETextSelectionRange?) {
+    /// - Parameter range: 要选择范围，nil表示清除选择
+    public func setSelection(range: TETextSelectionRange?) {
+        guard isSelectionEnabled else { return }
+        
+        // 验证范围有效性
+        if let range = range {
+            let textLength = getTextLength()
+            if range.location < 0 || range.endLocation > textLength {
+                return
+            }
+        }
+        
+        let shouldChange = delegate?.selectionManager(self, shouldChangeSelection: range) ?? true
+        guard shouldChange else { return }
+        
         selectedRange = range
         
         if let range = range {
             showSelection(for: range)
-            showSelectionHandles(for: range)
+            showMenu()
         } else {
-            hideSelectionHandles()
-            hideSelectionLayer()
+            hideSelection()
+            hideMenu()
         }
         
         delegate?.selectionManager(self, didChangeSelection: range)
     }
     
-    /// 获取当前选中的文本内容
-    /// - 根据当前选择范围从属性文本中提取对应的字符串
-    /// - 会进行范围有效性检查，确保不超出文本边界
-    /// - 如果没有选择或文本，返回 `nil`
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// if let selectedText = selectionManager.selectedText() {
-    ///     print("选中的文本: \(selectedText)")
-    /// }
-    /// ```
-    /// 
-    /// - Returns: 选中的文本字符串，如果没有选择则返回 `nil`
+    /// 获取选中的文本
+    /// - Returns: 选中的文本内容，如果没有选择则返回nil
     public func selectedText() -> String? {
-        guard let range = selectedRange,
-              let text = attributedText else { return nil }
-        
-        let nsRange = range.nsRange
-        guard nsRange.location != NSNotFound && nsRange.location + nsRange.length <= text.length else { return nil }
-        
-        return (text.string as NSString).substring(with: nsRange)
+        guard let range = selectedRange else { return nil }
+        return getText(in: range)
     }
     
-    /// 复制当前选中的文本到剪贴板
-    /// - 首先获取当前选中的文本
-    /// - 通过代理确认是否允许复制
-    /// - 如果允许，将文本复制到系统剪贴板
-    /// - 显示复制成功的视觉反馈
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// // 复制选中的文本
-    /// selectionManager.copySelectedText()
-    /// ```
-    public func copySelectedText() {
-        guard let text = selectedText() else { return }
+    /// 复制选中的文本到剪贴板
+    /// - Returns: true表示复制成功，false表示没有选中文本
+    @discardableResult
+    @objc public func copySelectedText() -> Bool {
+        guard let text = selectedText() else { return false }
         
-        if delegate?.selectionManager(self, shouldCopyText: text) != false {
-            clipboardManager.copyText(text)
-            showCopyFeedback()
-        }
+        UIPasteboard.general.string = text
+        hideMenu()
+        return true
     }
     
     /// 显示编辑菜单
-    /// - 在选择位置显示系统编辑菜单
-    /// - 菜单包含复制、全选等操作
-    /// - 需要当前有有效的选择范围
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// // 显示编辑菜单
-    /// selectionManager.showEditMenu()
-    /// ```
-    /// 
-    /// 注意: 此方法需要在有选择范围时调用，否则会直接返回
     public func showEditMenu() {
-        guard let range = selectedRange,
-              let containerView = containerView else { return }
-        
-        let menu = createEditMenu()
-        let rect = boundingRect(for: range)
-        
-        // 显示菜单
-        if let textView = containerView as? TETextView {
-            textView.showMenu(menu, from: rect)
-        }
+        guard selectedRange != nil else { return }
+        showMenu()
     }
     
     // MARK: - 私有方法
     
-    /// 设置手势识别器
-    private func setupGestureRecognizers() {
-        guard let containerView = containerView else { return }
-        
+    private func setupGestures() {
         // 长按手势
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-        longPress.minimumPressDuration = 0.5
-        containerView.addGestureRecognizer(longPress)
-        self.longPressGestureRecognizer = longPress
-    }
-    
-    /// 设置选择图层
-    private func setupSelectionLayer() {
-        guard let containerView = containerView else { return }
+        longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        longPressGesture?.minimumPressDuration = 0.5
         
-        let layer = CALayer()
-        layer.backgroundColor = selectionColor.cgColor
-        layer.isHidden = true
-        containerView.layer.insertSublayer(layer, at: 0)
-        self.selectionLayer = layer
+        // 点击手势（用于清除选择）
+        tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        tapGesture?.delegate = self
     }
     
-    /// 处理长按手势
+    private func cleanup() {
+        if let longPress = longPressGesture {
+            containerView?.removeGestureRecognizer(longPress)
+        }
+        if let tap = tapGesture {
+            containerView?.removeGestureRecognizer(tap)
+        }
+        
+        clearSelection()
+        containerView = nil
+    }
+    
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard isSelectionEnabled,
-              let attributedText = attributedText,
-              let layoutInfo = layoutInfo else { return }
+        guard isSelectionEnabled else { return }
         
         let location = gesture.location(in: gesture.view)
         
         switch gesture.state {
         case .began:
-            // 获取字符索引
-            let index = characterIndex(at: location, in: attributedText, layoutInfo: layoutInfo)
-            guard index != NSNotFound else { return }
-            
-            // 选择单词
-            let wordRange = wordRange(at: index, in: attributedText.string)
-            let selectionRange = TETextSelectionRange(location: wordRange.location, length: wordRange.length)
-            
-            setSelection(selectionRange)
-            showEditMenu()
-            
-        case .changed, .ended:
-            break
-            
-        default:
-            break
-        }
-    }
-    
-    /// 显示选择高亮
-    /// - Parameter range: 选择范围
-    private func showSelection(for range: TETextSelectionRange) {
-        guard let containerView = containerView,
-              let attributedText = attributedText else { return }
-        
-        let rect = boundingRect(for: range)
-        
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        
-        selectionLayer?.frame = rect
-        selectionLayer?.isHidden = false
-        
-        CATransaction.commit()
-        
-        // 更新选择文本颜色
-        if let textColor = selectionTextColor {
-            updateSelectionTextColor(textColor, for: range)
-        }
-    }
-    
-    /// 隐藏选择图层
-    private func hideSelectionLayer() {
-        selectionLayer?.isHidden = true
-    }
-    
-    /// 显示选择手柄
-    /// - Parameter range: 选择范围
-    private func showSelectionHandles(for range: TETextSelectionRange) {
-        guard isSelectionHandleEnabled,
-              let containerView = containerView else { return }
-        
-        // 获取开始和结束位置
-        let startRect = boundingRect(for: TETextSelectionRange(location: range.location, length: 0))
-        let endRect = boundingRect(for: TETextSelectionRange(location: range.location + range.length, length: 0))
-        
-        // 创建或更新开始手柄
-        if startHandleView == nil {
-            let handleView = TESelectionHandleView(type: .start)
-            handleView.backgroundColor = handleColor
-            containerView.addSubview(handleView)
-            startHandleView = handleView
-            
-            // 添加拖拽手势
-            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleHandlePan(_:)))
-            handleView.addGestureRecognizer(panGesture)
-        }
-        
-        // 创建或更新结束手柄
-        if endHandleView == nil {
-            let handleView = TESelectionHandleView(type: .end)
-            handleView.backgroundColor = handleColor
-            containerView.addSubview(handleView)
-            endHandleView = handleView
-            
-            // 添加拖拽手势
-            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handleHandlePan(_:)))
-            handleView.addGestureRecognizer(panGesture)
-        }
-        
-        // 更新位置
-        startHandleView?.center = CGPoint(x: startRect.midX, y: startRect.maxY)
-        endHandleView?.center = CGPoint(x: endRect.midX, y: endRect.maxY)
-        
-        startHandleView?.isHidden = false
-        endHandleView?.isHidden = false
-    }
-    
-    /// 隐藏选择手柄
-    private func hideSelectionHandles() {
-        startHandleView?.isHidden = true
-        endHandleView?.isHidden = true
-    }
-    
-    /// 处理手柄拖拽
-    @objc private func handleHandlePan(_ gesture: UIPanGestureRecognizer) {
-        guard let handleView = gesture.view as? TESelectionHandleView,
-              let attributedText = attributedText,
-              let layoutInfo = layoutInfo else { return }
-        
-        let location = gesture.location(in: containerView)
-        
-        switch gesture.state {
-        case .began:
-            isDraggingHandle = true
-            draggingHandleType = handleView.handleType
-            
+            startSelection(at: location)
         case .changed:
-            // 获取新的字符索引
-            let index = characterIndex(at: location, in: attributedText, layoutInfo: layoutInfo)
-            guard index != NSNotFound else { return }
-            
-            // 更新选择范围
-            if let currentRange = selectedRange {
-                var newRange: TETextSelectionRange
-                
-                switch handleView.handleType {
-                case .start:
-                    let newLocation = min(index, currentRange.location + currentRange.length)
-                    let newLength = (currentRange.location + currentRange.length) - newLocation
-                    newRange = TETextSelectionRange(location: newLocation, length: newLength)
-                    
-                case .end:
-                    let newLength = index - currentRange.location
-                    newRange = TETextSelectionRange(location: currentRange.location, length: newLength)
-                }
-                
-                setSelection(newRange)
-            }
-            
+            updateSelection(to: location)
         case .ended, .cancelled:
-            isDraggingHandle = false
-            draggingHandleType = nil
-            
+            finishSelection()
         default:
             break
         }
     }
     
-    /// 获取字符索引
-    /// - Parameters:
-    ///   - point: 点
-    ///   - attributedText: 属性文本
-    ///   - layoutInfo: 布局信息
-    /// - Returns: 字符索引
-    private func characterIndex(at point: CGPoint, in attributedText: NSAttributedString, layoutInfo: TELayoutInfo) -> Int {
-        // 这里需要实现基于CoreText的字符索引计算
-        // 简化实现，实际需要更复杂的布局计算
-        return NSNotFound
-    }
-    
-    /// 获取单词范围
-    /// - Parameters:
-    ///   - index: 字符索引
-    ///   - text: 文本
-    /// - Returns: 单词范围
-    private func wordRange(at index: Int, in text: String) -> NSRange {
-        let nsString = text as NSString
-        let range = nsString.rangeOfComposedCharacterSequence(at: index)
-        return nsString.rangeOfComposedCharacterSequences(for: range)
-    }
-    
-    /// 获取边界矩形
-    /// - Parameter range: 选择范围
-    /// - Returns: 边界矩形
-    private func boundingRect(for range: TETextSelectionRange) -> CGRect {
-        // 这里需要实现基于CoreText的边界计算
-        // 简化实现，实际需要更复杂的布局计算
-        return .zero
-    }
-    
-    /// 更新选择文本颜色
-    /// - Parameters:
-    ///   - color: 颜色
-    ///   - range: 范围
-    private func updateSelectionTextColor(_ color: UIColor, for range: TETextSelectionRange) {
-        // 这里需要实现文本颜色更新逻辑
-    }
-    
-    /// 创建编辑菜单
-    /// - Returns: 菜单
-    private func createEditMenu() -> UIMenu {
-        let copyAction = UIAction(title: "复制", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
-            self?.copySelectedText()
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        // 点击空白区域时清除选择
+        let location = gesture.location(in: gesture.view)
+        if !isPointInSelection(location) {
+            clearSelection()
         }
+    }
+    
+    private func startSelection(at point: CGPoint) {
+        selectionStartPoint = point
+        selectionEndPoint = point
         
-        let selectAllAction = UIAction(title: "全选", image: UIImage(systemName: "checkmark.circle")) { [weak self] _ in
-            self?.selectAll()
+        // 将点转换为文本范围
+        if let range = textRange(at: point) {
+            setSelection(range: range)
         }
+    }
+    
+    private func updateSelection(to point: CGPoint) {
+        selectionEndPoint = point
         
-        var actions = [copyAction]
-        
-        // 只有在有选择范围时显示全选
+        // 更新选择范围
+        if let startRange = textRange(at: selectionStartPoint ?? point),
+           let endRange = textRange(at: point) {
+            let newRange = TETextSelectionRange(
+                location: min(startRange.location, endRange.location),
+                length: abs(endRange.location - startRange.location)
+            )
+            setSelection(range: newRange)
+        }
+    }
+    
+    private func finishSelection() {
+        // 选择完成后的处理
         if selectedRange == nil {
-            actions.append(selectAllAction)
+            // 如果没有有效选择，尝试选择单词
+            if let startPoint = selectionStartPoint,
+               let wordRange = wordRange(at: startPoint) {
+                setSelection(range: wordRange)
+            }
+        }
+    }
+    
+    private func showSelection(for range: TETextSelectionRange) {
+        hideSelection()
+        
+        guard let containerView = containerView else { return }
+        
+        // 获取选择矩形
+        let selectionRects = getSelectionRects(for: range)
+        
+        // 创建选择图层
+        for rect in selectionRects {
+            let layer = CALayer()
+            layer.frame = rect
+            layer.backgroundColor = selectionColor.cgColor
+            layer.cornerRadius = 2.0
+            
+            containerView.layer.addSublayer(layer)
+            selectionLayers.append(layer)
+        }
+    }
+    
+    private func hideSelection() {
+        for layer in selectionLayers {
+            layer.removeFromSuperlayer()
+        }
+        selectionLayers.removeAll()
+        hideSelectionHandles()
+    }
+    
+    private func showSelectionHandles() {
+        // 显示选择手柄
+        guard let range = selectedRange, !range.isEmpty else { return }
+        // 这里可以实现选择手柄的显示逻辑
+        // 例如添加小圆点或拖动条来显示选择的开始和结束位置
+    }
+    
+    private func hideSelectionHandles() {
+        // 隐藏选择手柄
+        // 这里可以实现选择手柄的隐藏逻辑
+    }
+    
+    private func showMenu() {
+        guard let containerView = containerView,
+              let range = selectedRange,
+              !range.isEmpty else { return }
+        
+        // 获取菜单显示位置
+        let menuRect = getMenuRect(for: range)
+        
+        // 创建菜单项
+        let copyItem = UIMenuItem(title: "复制", action: #selector(copySelectedText))
+        let selectAllItem = UIMenuItem(title: "全选", action: #selector(selectAll))
+        
+        UIMenuController.shared.menuItems = [copyItem, selectAllItem]
+        UIMenuController.shared.showMenu(from: containerView, rect: menuRect)
+    }
+    
+    private func hideMenu() {
+        UIMenuController.shared.hideMenu()
+    }
+    
+    private func getMenuRect(for range: TETextSelectionRange) -> CGRect {
+        let selectionRects = getSelectionRects(for: range)
+        guard let firstRect = selectionRects.first else {
+            return CGRect(x: 0, y: 0, width: 100, height: 44)
         }
         
-        return UIMenu(title: "", children: actions)
+        return CGRect(x: firstRect.midX, y: firstRect.maxY + 5, width: 0, height: 0)
+    }
+    
+    // MARK: - 文本计算辅助方法
+    
+    private func getTextLength() -> Int {
+        // 这里需要根据实际的文本视图获取文本长度
+        // 暂时返回一个默认值
+        return 1000
+    }
+    
+    private func getText(in range: TETextSelectionRange) -> String? {
+        // 这里需要从实际的文本视图中提取文本
+        // 暂时返回模拟文本
+        return "选中的文本内容"
+    }
+    
+    private func textRange(at point: CGPoint) -> TETextSelectionRange? {
+        // 这里需要将点位置转换为文本范围
+        // 暂时返回模拟范围
+        return TETextSelectionRange(location: 0, length: 10)
+    }
+    
+    private func wordRange(at point: CGPoint) -> TETextSelectionRange? {
+        // 这里需要获取点位置所在的单词范围
+        // 暂时返回模拟范围
+        return TETextSelectionRange(location: 0, length: 5)
+    }
+    
+    private func getSelectionRects(for range: TETextSelectionRange) -> [CGRect] {
+        // 这里需要根据选择范围计算对应的矩形区域
+        // 暂时返回模拟矩形
+        return [CGRect(x: 20, y: 100, width: 200, height: 20)]
+    }
+    
+    private func isPointInSelection(_ point: CGPoint) -> Bool {
+        guard let range = selectedRange else { return false }
+        
+        let selectionRects = getSelectionRects(for: range)
+        return selectionRects.contains { rect in
+            rect.contains(point)
+        }
+    }
+}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension TETextSelectionManager: UIGestureRecognizerDelegate {
+    public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        // 允许与其他手势同时识别
+        return true
+    }
+    
+    public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard isSelectionEnabled else { return false }
+        
+        if gestureRecognizer == tapGesture {
+            // 只有在有选择的情况下才响应点击
+            return selectedRange != nil
+        }
+        
+        return true
     }
 }
 

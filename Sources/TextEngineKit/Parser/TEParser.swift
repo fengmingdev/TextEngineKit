@@ -552,7 +552,7 @@ public final class TECompositeParser: TETextParser {
         
         // 1) 先进行 Emoji 替换，确保后续 Markdown 基于最终文本
         let emojiStage = TEEmojiParser().parseToMutable(text)
-        var result = TEMarkdownParser().parseToMutable(emojiStage.string)
+        let result = TEMarkdownParser().parseToMutable(emojiStage.string)
         
         // 3) 数据检测补全（仅为未设置 .link 的范围添加链接属性）
         if linkConflictStrategy != .skip, let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue | NSTextCheckingResult.CheckingType.phoneNumber.rawValue) {

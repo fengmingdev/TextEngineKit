@@ -8,7 +8,9 @@
 // 
 import Foundation
 import CoreGraphics
-
+#if canImport(UIKit)
+import UIKit
+#endif
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -161,7 +163,11 @@ public final class TETextAttachment: NSObject, NSCopying, NSSecureCoding {
         }
         
         coder.encode(contentMode.rawValue, forKey: "contentMode")
+        #if canImport(UIKit)
+        coder.encode(NSValue(cgSize: size), forKey: "size")
+        #elseif canImport(AppKit)
         coder.encode(NSValue(size: size), forKey: "size")
+        #endif
         coder.encode(scalesWithFont, forKey: "scalesWithFont")
         coder.encode(baselineOffset, forKey: "baselineOffset")
         coder.encode(verticalAlignment.rawValue, forKey: "verticalAlignment")
@@ -237,7 +243,9 @@ public final class TETextAttachment: NSObject, NSCopying, NSSecureCoding {
         // 解码基本属性
         contentMode = TEContentMode(rawValue: coder.decodeInteger(forKey: "contentMode")) ?? .scaleToFill
         if let sizeValue = coder.decodeObject(of: NSValue.self, forKey: "size") {
-            size = CGSize(width: sizeValue.sizeValue.width, height: sizeValue.sizeValue.height)
+            var decodedSize = CGSize.zero
+            sizeValue.getValue(&decodedSize)
+            size = decodedSize
         } else {
             TETextEngine.shared.logWarning("解码附件大小时失败，使用默认大小", category: "attachment")
             size = CGSize(width: 20, height: 20) // 默认大小
@@ -247,11 +255,14 @@ public final class TETextAttachment: NSObject, NSCopying, NSSecureCoding {
         verticalAlignment = TEVerticalAlignment(rawValue: coder.decodeInteger(forKey: "verticalAlignment")) ?? .center
         
         if let marginsValue = coder.decodeObject(of: NSValue.self, forKey: "margins") {
-            let edgeInsets = marginsValue.edgeInsetsValue
             #if canImport(UIKit)
-            margins = UIEdgeInsets(top: edgeInsets.top, left: edgeInsets.left, bottom: edgeInsets.bottom, right: edgeInsets.right)
+            var edgeInsets = UIEdgeInsets.zero
+            marginsValue.getValue(&edgeInsets)
+            margins = edgeInsets
             #elseif canImport(AppKit)
-            margins = NSEdgeInsets(top: edgeInsets.top, left: edgeInsets.left, bottom: edgeInsets.bottom, right: edgeInsets.right)
+            var edgeInsets = NSEdgeInsets()
+            marginsValue.getValue(&edgeInsets)
+            margins = edgeInsets
             #endif
         }
         

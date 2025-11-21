@@ -561,8 +561,9 @@ public final class TEPerformanceProfiler {
     }
     
     deinit {
-        stopProfiling()
-        removeNotificationObservers()
+        // 避免在析构中调用 MainActor 隔离方法
+        monitoringTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
     }
     
     // MARK: - 公共方法
@@ -1093,7 +1094,7 @@ public final class TEPerformanceProfiler {
         let pixelCount = Int(containerSize.width * containerSize.height)
         let drawCallCount = 1
         let memoryUsage = pixelCount * 4 // 估算内存使用
-        let gpuUsage = 0.1
+        let gpuUsage: Float = 0.1
         
         let renderTime = CFAbsoluteTimeGetCurrent() - startTime
         

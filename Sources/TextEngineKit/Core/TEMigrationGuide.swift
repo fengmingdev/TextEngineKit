@@ -171,7 +171,7 @@ public class TEMigrationGuide {
     public func migrateErrorHandling() async {
         // 旧版：使用可选值和错误日志
         func legacyProcessText(_ text: String) -> NSAttributedString? {
-            let engine = TETextEngine.shared
+            _ = TETextEngine.shared
             // 处理逻辑...
             return nil  // 失败时返回nil
         }
@@ -222,7 +222,7 @@ public class TEMigrationGuide {
             let logger: TETextLoggerProtocol = await TEContainer.shared.resolve(TETextLoggerProtocol.self)
             
             // 执行操作
-            let result = await monitor.measure(operation: "modern_operation") {
+            let result = monitor.measure(operation: "modern_operation") {
                 // 操作逻辑
                 return "操作结果"
             }

@@ -4,7 +4,7 @@
 //
 //  Created by Assistant on 2025/11/21.
 //
-//  调试可视化工具：提供文本布局调试和可视化功能
+//  调试可视化工具：提供文本布局调试和可视化功能，参考MPITextKit设计
 //
 
 #if canImport(UIKit)
@@ -15,130 +15,226 @@ import CoreGraphics
 
 /// 文本调试选项
 /// 配置文本布局调试和可视化显示的选项
-/// 
-/// 功能特性:
-/// - 基线显示和颜色配置
-/// - 行片段边界显示
-/// - 字形边界显示
-/// - 排除路径可视化
-/// - 选择范围高亮
-/// - 自定义颜色配置
-/// 
-/// 使用示例:
-/// ```swift
-/// var debugOptions = TETextDebugOptions()
-/// debugOptions.showBaselines = true
-/// debugOptions.baselineColor = .red
-/// debugOptions.showLineFragments = true
-/// debugOptions.showExclusionPaths = true
-/// debugOptions.exclusionPathColor = .purple
-/// 
-/// // 应用调试选项
-/// debugger.updateOptions(debugOptions)
-/// ```
 public struct TETextDebugOptions {
-    
     /// 是否启用基线显示
-    /// - 显示文本的基线位置，有助于理解文本垂直对齐
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会在文本视图中显示红色的水平基线，
+    /// 帮助开发者理解文本的垂直对齐和行高计算。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showBaselines = true  // 显示文本基线
+    /// ```
     public var showBaselines: Bool = true
     
     /// 基线颜色
-    /// - 用于绘制文本基线的颜色
-    /// - 默认值为半透明红色
-    /// - 建议使用醒目的颜色以便调试时清晰可见
+    /// 
+    /// 控制基线显示的颜色。默认使用半透明的红色 (`UIColor.red.withAlphaComponent(0.5)`)。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.baselineColor = .blue.withAlphaComponent(0.7)  // 使用蓝色基线
+    /// ```
     public var baselineColor: UIColor = UIColor.red.withAlphaComponent(0.5)
     
     /// 是否显示行片段边界
-    /// - 显示文本布局时每一行的边界矩形
-    /// - 有助于理解文本换行和布局行为
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会显示每个行片段的完整边界矩形（红色）
+    /// 和实际使用矩形（蓝色），帮助分析文本换行和布局行为。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showLineFragments = true  // 显示行片段边界
+    /// ```
     public var showLineFragments: Bool = true
     
     /// 行片段边界颜色
-    /// - 用于绘制行片段边界的颜色
-    /// - 默认值为半透明红色
+    /// 
+    /// 控制行片段完整边界的显示颜色。默认使用半透明的红色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.lineFragmentBorderColor = .green.withAlphaComponent(0.3)  // 使用绿色边界
+    /// ```
     public var lineFragmentBorderColor: UIColor = UIColor.red.withAlphaComponent(0.2)
     
     /// 已使用的行片段边界颜色
-    /// - 用于绘制包含文本的行片段边界颜色
-    /// - 与空行片段区分显示
-    /// - 默认值为半透明蓝色
+    /// 
+    /// 控制行片段实际使用区域的显示颜色。默认使用半透明的蓝色。
+    /// 这个区域通常比完整矩形小，因为可能存在空白区域。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.lineFragmentUsedBorderColor = .orange.withAlphaComponent(0.4)  // 使用橙色
+    /// ```
     public var lineFragmentUsedBorderColor: UIColor = UIColor.blue.withAlphaComponent(0.2)
     
     /// 是否显示字形边界
-    /// - 显示每个字符（字形）的精确边界框
-    /// - 有助于理解字符级布局和间距
-    /// - 默认值为 `false`（因为可能影响性能）
+    /// 
+    /// 当设置为 `true` 时，会显示每个字形的边界矩形，
+    /// 用于精确的字符级布局分析。由于可能影响性能，默认关闭。
+    /// 
+    /// 默认值为 `false`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showGlyphs = true  // 启用字形边界显示（性能开销较大）
+    /// ```
     public var showGlyphs: Bool = false
     
     /// 字形边界颜色
-    /// - 用于绘制字形边界的颜色
-    /// - 默认值为半透明橙色
+    /// 
+    /// 控制字形边界矩形的显示颜色。默认使用半透明的橙色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.glyphBorderColor = .purple.withAlphaComponent(0.5)  // 使用紫色字形边界
+    /// ```
     public var glyphBorderColor: UIColor = UIColor.orange.withAlphaComponent(0.2)
     
     /// 是否显示排除路径
-    /// - 显示文本布局中的排除路径区域
-    /// - 有助于调试文本环绕和布局避让
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会显示所有排除路径的形状和范围，
+    /// 帮助分析文本如何围绕图像或其他元素进行排版。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showExclusionPaths = true  // 显示排除路径
+    /// ```
     public var showExclusionPaths: Bool = true
     
     /// 排除路径颜色
-    /// - 用于绘制排除路径区域的颜色
-    /// - 默认值为半透明紫色
+    /// 
+    /// 控制排除路径的显示颜色。默认使用半透明的紫色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.exclusionPathColor = .red.withAlphaComponent(0.4)  // 使用红色排除路径
+    /// ```
     public var exclusionPathColor: UIColor = UIColor.purple.withAlphaComponent(0.3)
     
     /// 是否显示选择范围
-    /// - 显示当前文本选择的高亮区域
-    /// - 有助于调试文本选择功能
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会显示当前文本选择的高亮区域，
+    /// 包括选择矩形和选择手柄位置。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showSelection = true  // 显示文本选择范围
+    /// ```
     public var showSelection: Bool = true
     
     /// 选择范围颜色
-    /// - 用于绘制文本选择高亮的颜色
-    /// - 默认值为半透明系统黄色
+    /// 
+    /// 控制选择范围的显示颜色。默认使用半透明的系统黄色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.selectionColor = .systemBlue.withAlphaComponent(0.3)  // 使用蓝色选择范围
+    /// ```
     public var selectionColor: UIColor = UIColor.systemYellow.withAlphaComponent(0.3)
     
     /// 是否显示附件
-    /// - 显示文本中的附件元素（如图片、自定义视图等）
-    /// - 有助于调试附件布局和位置
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会显示文本附件（如图像、自定义视图）的边界矩形，
+    /// 帮助分析附件布局和文本环绕效果。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showAttachments = true  // 显示文本附件
+    /// ```
     public var showAttachments: Bool = true
     
     /// 附件颜色
-    /// - 用于绘制附件边界的颜色
-    /// - 默认值为半透明绿色
-    /// - 建议使用与文本对比明显的颜色
+    /// 
+    /// 控制附件边界矩形的显示颜色。默认使用半透明的绿色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.attachmentColor = .blue.withAlphaComponent(0.6)  // 使用蓝色附件边界
+    /// ```
     public var attachmentColor: UIColor = UIColor.green.withAlphaComponent(0.5)
     
     /// 是否显示高亮
-    /// - 显示文本中的高亮区域
-    /// - 有助于调试文本高亮和背景色效果
-    /// - 默认值为 `true`
+    /// 
+    /// 当设置为 `true` 时，会显示文本高亮区域（如搜索高亮、语法高亮等），
+    /// 帮助分析高亮效果的布局和覆盖范围。
+    /// 
+    /// 默认值为 `true`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.showHighlights = true  // 显示文本高亮
+    /// ```
     public var showHighlights: Bool = true
     
     /// 高亮颜色
-    /// - 用于绘制文本高亮区域的颜色
-    /// - 默认值为半透明粉色
-    /// - 建议使用柔和的颜色以避免干扰文本阅读
+    /// 
+    /// 控制高亮区域的显示颜色。默认使用半透明的系统粉色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.highlightColor = .systemTeal.withAlphaComponent(0.4)  // 使用蓝绿色高亮
+    /// ```
     public var highlightColor: UIColor = UIColor.systemPink.withAlphaComponent(0.3)
     
     /// 线宽
-    /// - 所有调试图层边框的线宽
-    /// - 默认值为 `1.0`
-    /// - 建议值范围：0.5 - 2.0，过细可能难以观察，过粗可能遮挡内容
+    /// 
+    /// 控制所有调试线条的宽度。默认值为 `1.0`。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.lineWidth = 2.0  // 使用更粗的线条
+    /// ```
     public var lineWidth: CGFloat = 1.0
     
     /// 字体大小（用于调试文本）
-    /// - 调试信息文本的字体大小
-    /// - 默认值为 `10.0`
-    /// - 建议值范围：8 - 12，确保文本清晰可读
+    /// 
+    /// 控制调试信息文本的字体大小。默认值为 `10.0`。
+    /// 设置为 `0` 可禁用调试文本显示。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.debugFontSize = 12.0  // 使用更大的调试文本
+    /// ```
     public var debugFontSize: CGFloat = 10.0
     
     /// 调试文本颜色
-    /// - 调试信息文本的颜色
-    /// - 默认值为黑色
-    /// - 建议选择与背景对比度高的颜色
+    /// 
+    /// 控制调试信息文本的颜色。默认值为黑色。
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var options = TETextDebugOptions()
+    /// options.debugTextColor = .white  // 使用白色调试文本（适合深色背景）
+    /// ```
     public var debugTextColor: UIColor = .black
     
     public init() {}
@@ -146,48 +242,23 @@ public struct TETextDebugOptions {
 
 /// 调试信息
 /// 包含文本布局、性能、排除路径和选择信息的综合调试数据
-/// 
-/// 功能特性:
-/// - 文本布局信息（行数、字形数、字符数等）
-/// - 性能指标（布局时间、渲染时间、内存使用等）
-/// - 排除路径统计（路径数量、有效区域、排除面积等）
-/// - 选择状态信息（选择范围、选择矩形、手柄位置等）
-/// 
-/// 使用示例:
-/// ```swift
-/// let debugInfo = TETextDebugInfo(
-///     layoutInfo: layoutInfo,
-///     performanceInfo: performanceInfo,
-///     exclusionPathInfo: exclusionPathInfo,
-///     selectionInfo: selectionInfo,
-///     timestamp: Date()
-/// )
-/// 
-/// // 分析布局性能
-/// if let performance = debugInfo.performanceInfo {
-///     print("布局耗时: \\(performance.layoutTime)秒")
-///     print("总耗时: \\(performance.totalTime)秒")
-/// }
-/// ```
 public struct TETextDebugInfo {
+    /// 布局信息
+    public let layoutInfo: LayoutInfo
     
-    /// 文本布局信息
-    /// 包含文本布局的详细统计和几何信息
-    /// 
-    /// 功能特性:
-    /// - 总行数和字符统计
-    /// - 行片段详细信息
-    /// - 基线位置信息
-    /// - 截断状态检测
+    /// 性能信息
+    public let performanceInfo: PerformanceInfo
+    
+    /// 排除路径信息
+    public let exclusionPathInfo: ExclusionPathInfo
+    
+    /// 选择信息
+    public let selectionInfo: SelectionInfo
+    
+    /// 布局信息结构
     public struct LayoutInfo {
-        /// 总行数
-        public let lineCount: Int
-        
-        /// 总字形数
-        public let totalGlyphCount: Int
-        
-        /// 总字符数
-        public let totalCharacterCount: Int
+        /// 文本容器信息
+        public let container: ContainerInfo
         
         /// 行片段信息数组
         public let lineFragments: [LineFragmentInfo]
@@ -195,53 +266,120 @@ public struct TETextDebugInfo {
         /// 基线信息数组
         public let baselines: [BaselineInfo]
         
-        /// 行片段信息
-        /// 表示文本布局中单个行片段的详细信息
-        public struct LineFragmentInfo {
-            /// 行片段的完整矩形区域
-            public let rect: CGRect
-            
-            /// 行片段的实际使用矩形区域
-            /// 通常比完整矩形小，因为可能存在空白区域
-            public let usedRect: CGRect
-            
-            /// 此行片段中的字形数量
-            public let glyphCount: Int
-            
-            /// 此行片段对应的字符范围
-            public let characterRange: NSRange
-            
-            /// 此行片段是否被截断
-            /// 当文本超出容器边界时会被截断
-            public let isTruncated: Bool
-        }
+        /// 字形信息数组（如果启用）
+        public let glyphs: [GlyphInfo]
         
-        /// 基线信息
-        /// 表示文本基线的位置和相关度量信息
-        public struct BaselineInfo {
-            /// 基线的Y坐标
-            public let y: CGFloat
-            
-            /// 上行高度（从基线到字符顶部的距离）
-            public let ascent: CGFloat
-            
-            /// 下行高度（从基线到字符底部的距离）
-            public let descent: CGFloat
-            
-            /// 行间距（额外添加的间距）
-            public let leading: CGFloat
-        }
+        /// 附件信息数组
+        public let attachments: [AttachmentInfo]
+        
+        /// 高亮信息数组
+        public let highlights: [HighlightInfo]
+    }
+    
+    /// 容器信息
+    public struct ContainerInfo {
+        /// 容器大小
+        public let size: CGSize
+        
+        /// 内边距
+        public let insets: UIEdgeInsets
+        
+        /// 排除路径数量
+        public let exclusionPathCount: Int
+        
+        /// 文本对齐方式
+        public let alignment: NSTextAlignment
+        
+        /// 行间距
+        public let lineSpacing: CGFloat
+        
+        /// 段落间距
+        public let paragraphSpacing: CGFloat
+    }
+    
+    /// 行片段信息
+    public struct LineFragmentInfo {
+        /// 行片段的完整矩形区域
+        public let rect: CGRect
+        
+        /// 行片段的实际使用矩形区域
+        /// 通常比完整矩形小，因为可能存在空白区域
+        public let usedRect: CGRect
+        
+        /// 此行片段中的字形数量
+        public let glyphCount: Int
+        
+        /// 此行片段对应的字符范围
+        public let characterRange: NSRange
+        
+        /// 此行片段是否被截断
+        /// 当文本超出容器边界时会被截断
+        public let isTruncated: Bool
+    }
+    
+    /// 基线信息
+    /// 表示文本基线的位置和相关度量信息
+    public struct BaselineInfo {
+        /// 基线的Y坐标
+        public let y: CGFloat
+        
+        /// 上行高度（从基线到字符顶部的距离）
+        public let ascent: CGFloat
+        
+        /// 下行高度（从基线到字符底部的距离）
+        public let descent: CGFloat
+        
+        /// 行间距（额外添加的间距）
+        public let leading: CGFloat
+    }
+    
+    /// 字形信息
+    public struct GlyphInfo {
+        /// 字形的边界矩形
+        public let rect: CGRect
+        
+        /// 字形对应的字符索引
+        public let characterIndex: Int
+        
+        /// 字形ID
+        public let glyphID: CGGlyph
+        
+        /// 字体信息
+        public let font: UIFont
+    }
+    
+    /// 附件信息
+    public struct AttachmentInfo {
+        /// 附件的边界矩形
+        public let rect: CGRect
+        
+        /// 附件类型
+        public let type: String
+        
+        /// 附件的图像（如果有）
+        public let image: UIImage?
+        
+        /// 附件的文件路径（如果有）
+        public let filePath: String?
+    }
+    
+    /// 高亮信息
+    public struct HighlightInfo {
+        /// 高亮的边界矩形数组
+        public let rects: [CGRect]
+        
+        /// 高亮的颜色
+        public let color: UIColor
+        
+        /// 高亮对应的字符范围
+        public let characterRange: NSRange
+        
+        /// 高亮类型（背景色、下划线等）
+        public let type: String
     }
     
     /// 性能信息
     /// 包含文本布局和渲染的性能指标
-    /// 
-    /// 功能特性:
-    /// - 布局计算时间
-    /// - 渲染绘制时间
-    /// - 总处理时间
-    /// - 内存使用情况
-    /// - 缓存命中状态
     public struct PerformanceInfo {
         /// 布局计算耗时（秒）
         public let layoutTime: TimeInterval
@@ -262,12 +400,6 @@ public struct TETextDebugInfo {
     
     /// 排除路径信息
     /// 包含排除路径的统计和几何信息
-    /// 
-    /// 功能特性:
-    /// - 排除路径数组
-    /// - 有效矩形区域
-    /// - 排除面积统计
-    /// - 总面积计算
     public struct ExclusionPathInfo {
         /// 排除路径数组
         public let paths: [UIBezierPath]
@@ -285,11 +417,6 @@ public struct TETextDebugInfo {
     
     /// 选择信息
     /// 包含文本选择的详细信息
-    /// 
-    /// 功能特性:
-    /// - 选择字符范围
-    /// - 选择矩形数组
-    /// - 选择手柄位置
     public struct SelectionInfo {
         /// 选择的字符范围
         /// nil表示没有选择
@@ -299,38 +426,37 @@ public struct TETextDebugInfo {
         /// 每个矩形对应一个选择区域
         public let selectionRects: [CGRect]
         
-        /// 选择手柄位置数组
-        /// 包含开始和结束手柄的位置
-        public let handlePositions: [CGPoint]
+        /// 选择手柄位置
+        public let handlePositions: (start: CGPoint, end: CGPoint)?
+        
+        /// 选择颜色
+        public let selectionColor: UIColor
     }
+}
+
+/// 文本调试器委托
+public protocol TETextDebuggerDelegate: AnyObject {
+    /// 调试信息更新时调用
+    func debugger(_ debugger: TETextDebugger, didUpdateDebugInfo info: TETextDebugInfo)
     
-    /// 布局信息（可选）
-    public let layoutInfo: LayoutInfo?
-    
-    /// 性能信息（可选）
-    public let performanceInfo: PerformanceInfo?
-    
-    /// 排除路径信息（可选）
-    public let exclusionPathInfo: ExclusionPathInfo?
-    
-    /// 选择信息（可选）
-    public let selectionInfo: SelectionInfo?
-    
-    /// 调试信息生成的时间戳
-    public let timestamp: Date
+    /// 调试模式状态改变时调用
+    func debugger(_ debugger: TETextDebugger, didChangeDebuggingState isDebugging: Bool)
 }
 
 /// 文本调试器
-/// 提供文本布局调试和可视化功能
+/// 提供文本布局的可视化调试功能，参考MPITextKit设计
+/// 
+/// `TETextDebugger` 是一个强大的文本布局调试工具，提供多种可视化选项来帮助开发者
+/// 理解和优化文本布局。它支持实时显示基线、行片段、字形、排除路径、选择范围、
+/// 附件和高亮等文本布局元素。
 /// 
 /// 功能特性:
 /// - 实时文本布局可视化
-/// - 基线、行片段、字形边界显示
-/// - 排除路径可视化
-/// - 选择范围高亮
-/// - 性能指标收集
-/// - 调试信息历史记录
-/// - 调试报告导出
+/// - 多种调试元素显示（基线、行片段、字形等）
+/// - 性能监控集成
+/// - 可配置的显示选项
+/// - 委托模式支持状态更新
+/// - 线程安全的 `@MainActor` 实现
 /// 
 /// 使用示例:
 /// ```swift
@@ -341,926 +467,568 @@ public struct TETextDebugInfo {
 /// var options = TETextDebugOptions()
 /// options.showBaselines = true
 /// options.showLineFragments = true
-/// options.showExclusionPaths = true
-/// TETextDebugger.shared.options = options
+/// options.baselineColor = .red
+/// TETextDebugger.shared.updateOptions(options)
 /// 
 /// // 调试标签
 /// let label = TELabel()
-/// label.text = "Hello World"
 /// TETextDebugger.shared.debugLabel(label)
 /// 
-/// // 调试文本视图
-/// let textView = TETextView()
-/// textView.text = "Long text content..."
-/// TETextDebugger.shared.debugTextView(textView)
-/// 
-/// // 导出调试报告
-/// let report = TETextDebugger.shared.exportDebugReport()
-/// print(report)
+/// // 设置委托接收调试信息更新
+/// class MyViewController: UIViewController, TETextDebuggerDelegate {
+///     func viewDidLoad() {
+///         super.viewDidLoad()
+///         TETextDebugger.shared.delegate = self
+///     }
+///     
+///     func debugger(_ debugger: TETextDebugger, didUpdateDebugInfo info: TETextDebugInfo) {
+///         print("布局时间: \\(info.performanceInfo.layoutTime)s")
+///         print("渲染时间: \\(info.performanceInfo.renderTime)s")
+///     }
+/// }
 /// ```
 /// 
-/// - Note: 该类使用 `@MainActor` 确保线程安全
+/// - Important: 此类使用 `@MainActor` 注解，确保所有操作都在主线程执行。
+/// - Note: 使用单例模式，通过 `TETextDebugger.shared` 访问共享实例。
+/// - SeeAlso: `TETextDebugOptions`, `TETextDebugInfo`, `TETextDebuggerDelegate`
 @MainActor
-public final class TETextDebugger {
+public final class TETextDebugger: NSObject {
     
     // MARK: - 属性
     
     /// 共享实例
-    /// 提供全局访问点的单例实例
+    /// 
+    /// `TETextDebugger` 使用单例模式，通过此属性访问全局共享实例。
     /// 
     /// 使用示例:
     /// ```swift
-    /// // 启用调试
-    /// TETextDebugger.shared.enableDebugging()
-    /// 
-    /// // 调试视图
-    /// TETextDebugger.shared.debugLabel(myLabel)
+    /// let debugger = TETextDebugger.shared
+    /// debugger.enableDebugging()
     /// ```
     public static let shared = TETextDebugger()
     
     /// 调试选项
-    /// 控制调试可视化显示的配置选项
     /// 
-    /// 可以动态修改此属性来改变调试显示效果:
+    /// 控制调试器的行为和显示效果。可以通过 `updateOptions(_:)` 方法动态更新。
+    /// 
+    /// 使用示例:
     /// ```swift
     /// var options = TETextDebugOptions()
     /// options.showBaselines = true
     /// options.baselineColor = .red
-    /// TETextDebugger.shared.options = options
+    /// TETextDebugger.shared.updateOptions(options)
     /// ```
     public var options = TETextDebugOptions()
     
-    /// 是否启用调试
-    /// 控制调试器是否处于活动状态
+    /// 委托
     /// 
-    /// - 当为 `true` 时，调试器会收集调试信息并显示调试图层
-    /// - 当为 `false` 时，调试器不会执行任何调试操作
-    /// - 默认为 `false`
-    public var isDebuggingEnabled: Bool = false
-    
-    /// 调试图层数组
-    /// 存储当前显示的所有调试图层
-    /// 
-    /// 这些图层会在以下情况下被清除:
-    /// - 调用 `clearAllDebugLayers()` 方法
-    /// - 禁用调试模式 (`disableDebugging()`)
-    /// - 应用进入前台时（可选）
-    private var debugLayers: [CALayer] = []
-    
-    /// 调试信息历史
-    /// 存储最近收集的调试信息
-    /// 
-    /// - 最大存储数量由 `maxHistoryCount` 控制
-    /// - 可以通过 `getDebugInfoHistory()` 方法获取历史记录
-    /// - 历史记录可用于性能分析和问题追踪
-    private var debugInfoHistory: [TETextDebugInfo] = []
-    
-    /// 最大历史记录数
-    /// 调试信息历史记录的最大存储数量
-    /// 
-    /// - 默认值为 `100`
-    /// - 当超过此数量时，最早的历史记录会被自动删除
-    /// - 可以通过修改此值来调整历史记录的保留策略
-    private let maxHistoryCount: Int = 100
-    
-    /// 调试委托
-    /// 用于接收调试事件和调试信息的委托对象
-    /// 
-    /// 委托可以实现以下功能:
-    /// - 接收调试信息收集完成通知
-    /// - 自定义调试数据处理
-    /// - 实现额外的调试可视化
+    /// 接收调试信息更新和调试状态变化的通知。设置为 `nil` 可禁用委托回调。
     /// 
     /// 使用示例:
     /// ```swift
-    /// class MyDebugger: TETextDebuggerDelegate {
-    ///     func debugger(_ debugger: TETextDebugger, didCollectDebugInfo debugInfo: TETextDebugInfo, for view: UIView?) {
-    ///         // 处理调试信息
-    ///         print("收集到调试信息: \\(debugInfo)")
+    /// class MyController: TETextDebuggerDelegate {
+    ///     func viewDidLoad() {
+    ///         TETextDebugger.shared.delegate = self
     ///     }
     /// }
-    /// 
-    /// TETextDebugger.shared.delegate = MyDebugger()
     /// ```
     public weak var delegate: TETextDebuggerDelegate?
     
-    // MARK: - 初始化
+    /// 是否正在调试
+    private var isDebugging = false
     
-    /// 私有初始化方法
-    /// 设置通知观察者以处理应用生命周期事件
-    /// 
-    /// 主要功能:
-    /// - 监听应用进入前台通知
-    /// - 在适当时机刷新调试图层
-    /// - 确保调试状态的正确性
-    private init() {
-        setupNotificationObservers()
+    /// 调试图层字典
+    private var debugLayers: [UIView: [CALayer]] = [:]
+    
+    /// 性能分析器
+    private let performanceProfiler = TEPerformanceProfiler.shared
+    
+    // MARK: - 生命周期
+    
+    private override init() {
+        super.init()
     }
     
-    deinit {
-        removeNotificationObservers()
-    }
+    deinit {}
     
     // MARK: - 公共方法
     
     /// 启用调试模式
-    /// 激活调试器并开始收集调试信息
     /// 
-    /// 调用此方法后:
-    /// - `isDebuggingEnabled` 属性会被设置为 `true`
-    /// - 调试器会开始响应调试请求
-    /// - 会记录一条调试器启用的日志信息
+    /// 启动文本布局调试功能，开始性能监控，并通知委托调试状态变化。
+    /// 如果调试模式已经启用，此方法不会产生任何效果。
     /// 
     /// 使用示例:
     /// ```swift
     /// TETextDebugger.shared.enableDebugging()
-    /// // 现在可以开始调试文本视图
-    /// TETextDebugger.shared.debugLabel(myLabel)
     /// ```
+    /// 
+    /// - Note: 此方法会自动启动性能分析器。
+    /// - SeeAlso: `disableDebugging()`, `refreshDebugging()`
     public func enableDebugging() {
-        isDebuggingEnabled = true
-        TETextEngine.shared.logInfo("文本调试器已启用", category: "debug")
+        guard !isDebugging else { return }
+        
+        isDebugging = true
+        delegate?.debugger(self, didChangeDebuggingState: true)
+        
+        // 启动性能监控
+        performanceProfiler.startProfiling()
     }
     
     /// 禁用调试模式
-    /// 停用调试器并清除所有调试图层
     /// 
-    /// 调用此方法后:
-    /// - `isDebuggingEnabled` 属性会被设置为 `false`
-    /// - 所有当前显示的调试图层会被清除
-    /// - 会记录一条调试器禁用的日志信息
+    /// 停止文本布局调试功能，清除所有调试图层，停止性能监控，
+    /// 并通知委托调试状态变化。如果调试模式已经禁用，此方法不会产生任何效果。
     /// 
     /// 使用示例:
     /// ```swift
     /// TETextDebugger.shared.disableDebugging()
-    /// // 所有调试图层都会被清除
     /// ```
+    /// 
+    /// - Note: 此方法会自动停止性能分析器并清除所有调试图层。
+    /// - SeeAlso: `enableDebugging()`, `refreshDebugging()`
     public func disableDebugging() {
-        isDebuggingEnabled = false
+        guard isDebugging else { return }
+        
+        isDebugging = false
+        
+        // 清除所有调试图层
         clearAllDebugLayers()
-        TETextEngine.shared.logInfo("文本调试器已禁用", category: "debug")
+        
+        // 停止性能监控
+        performanceProfiler.stopProfiling()
+        
+        delegate?.debugger(self, didChangeDebuggingState: false)
+    }
+    
+    /// 更新调试选项
+    /// 
+    /// 动态更新调试器的行为和显示效果。如果调试模式当前已启用，
+    /// 会自动重新应用新的选项设置。
+    /// 
+    /// - Parameter options: 新的调试选项配置
+    /// 
+    /// 使用示例:
+    /// ```swift
+    /// var newOptions = TETextDebugOptions()
+    /// newOptions.showBaselines = false  // 隐藏基线
+    /// newOptions.showLineFragments = true  // 显示行片段
+    /// TETextDebugger.shared.updateOptions(newOptions)
+    /// ```
+    /// 
+    /// - Note: 如果调试模式已启用，会自动刷新所有调试视图。
+    /// - SeeAlso: `TETextDebugOptions`
+    public func updateOptions(_ options: TETextDebugOptions) {
+        self.options = options
+        
+        // 如果正在调试，重新应用选项
+        if isDebugging {
+            refreshDebugging()
+        }
     }
     
     /// 调试标签
-    /// 对指定的标签进行调试分析和可视化
     /// 
-    /// - Parameter label: 要调试的 `TELabel` 实例
+    /// 对指定的 `TELabel` 应用调试可视化。会清除现有的调试图层，
+    /// 获取最新的调试信息，并应用相应的可视化效果。
     /// 
-    /// 此方法会执行以下操作:
-    /// 1. 检查调试模式是否启用
-    /// 2. 收集标签的调试信息（布局、性能、排除路径、选择信息）
-    /// 3. 显示相应的调试图层
-    /// 4. 保存调试信息到历史记录
-    /// 5. 通知委托对象
+    /// - Parameter label: 要调试的文本标签
     /// 
     /// 使用示例:
     /// ```swift
     /// let label = TELabel()
-    /// label.text = "Hello World"
+    /// label.text = "Hello, World!"
     /// TETextDebugger.shared.debugLabel(label)
     /// ```
     /// 
-    /// - Note: 如果调试模式未启用，此方法不会执行任何操作
+    /// - Note: 仅在调试模式启用时有效。
+    /// - SeeAlso: `debugTextView(_:)`, `getDebugInfo(for:)`
     public func debugLabel(_ label: TELabel) {
-        guard isDebuggingEnabled else { return }
+        guard isDebugging else { return }
         
-        // 收集调试信息
-        let debugInfo = collectDebugInfo(from: label)
+        // 清除现有的调试图层
+        clearDebugLayers(for: label)
         
-        // 显示调试图层
-        showDebugLayers(for: label, with: debugInfo)
+        // 获取调试信息
+        let debugInfo = getDebugInfo(for: label)
         
-        // 保存调试信息
-        saveDebugInfo(debugInfo)
+        // 应用调试可视化
+        applyDebugVisualization(to: label, with: debugInfo)
         
-        // 通知委托
-        delegate?.debugger(self, didCollectDebugInfo: debugInfo, for: label)
+        delegate?.debugger(self, didUpdateDebugInfo: debugInfo)
     }
     
     /// 调试文本视图
-    /// 对指定的文本视图进行调试分析和可视化
     /// 
-    /// - Parameter textView: 要调试的 `TETextView` 实例
+    /// 对指定的 `TETextView` 应用调试可视化。会清除现有的调试图层，
+    /// 获取最新的调试信息，并应用相应的可视化效果。
     /// 
-    /// 此方法会执行以下操作:
-    /// 1. 检查调试模式是否启用
-    /// 2. 收集文本视图的调试信息（布局、性能、排除路径、选择信息）
-    /// 3. 显示相应的调试图层
-    /// 4. 保存调试信息到历史记录
-    /// 5. 通知委托对象
+    /// - Parameter textView: 要调试的文本视图
     /// 
     /// 使用示例:
     /// ```swift
     /// let textView = TETextView()
-    /// textView.text = "Long text content..."
+    /// textView.text = "Hello, World!"
     /// TETextDebugger.shared.debugTextView(textView)
     /// ```
     /// 
-    /// - Note: 如果调试模式未启用，此方法不会执行任何操作
+    /// - Note: 仅在调试模式启用时有效。
+    /// - SeeAlso: `debugLabel(_:)`, `getDebugInfo(for:)`
     public func debugTextView(_ textView: TETextView) {
-        guard isDebuggingEnabled else { return }
+        guard isDebugging else { return }
         
-        // 收集调试信息
-        let debugInfo = collectDebugInfo(from: textView)
+        // 清除现有的调试图层
+        clearDebugLayers(for: textView)
         
-        // 显示调试图层
-        showDebugLayers(for: textView, with: debugInfo)
+        // 获取调试信息
+        let debugInfo = getDebugInfo(for: textView)
         
-        // 保存调试信息
-        saveDebugInfo(debugInfo)
+        // 应用调试可视化
+        applyDebugVisualization(to: textView, with: debugInfo)
         
-        // 通知委托
-        delegate?.debugger(self, didCollectDebugInfo: debugInfo, for: textView)
+        delegate?.debugger(self, didUpdateDebugInfo: debugInfo)
     }
     
-    /// 调试布局信息
-    /// 对指定的文本和容器进行布局调试分析
+    /// 获取调试信息
     /// 
-    /// - Parameters:
-    ///   - attributedText: 要调试的属性文本
-    ///   - containerSize: 文本容器的尺寸
-    ///   - exclusionPaths: 排除路径数组（可选，默认为空数组）
+    /// 收集指定视图的全面调试信息，包括布局、性能、排除路径和选择信息。
     /// 
-    /// 此方法会执行以下操作:
-    /// 1. 检查调试模式是否启用
-    /// 2. 创建临时文本容器进行布局计算
-    /// 3. 收集布局调试信息
-    /// 4. 保存调试信息到历史记录
-    /// 5. 通知委托对象
+    /// - Parameter view: 要分析的视图（`TELabel` 或 `TETextView`）
+    /// - Returns: 包含完整调试信息的 `TETextDebugInfo` 结构体
     /// 
     /// 使用示例:
     /// ```swift
-    /// let text = NSAttributedString(string: "Hello World")
-    /// let size = CGSize(width: 200, height: 100)
-    /// let exclusionPaths = [TEExclusionPath.rect(CGRect(x: 50, y: 20, width: 40, height: 40))]
-    /// 
-    /// TETextDebugger.shared.debugLayout(
-    ///     attributedText: text,
-    ///     containerSize: size,
-    ///     exclusionPaths: exclusionPaths
-    /// )
+    /// let label = TELabel()
+    /// let debugInfo = TETextDebugger.shared.getDebugInfo(for: label)
+    /// print("布局时间: \\(debugInfo.performanceInfo.layoutTime)s")
+    /// print("排除路径数量: \\(debugInfo.exclusionPathInfo.paths.count)")
     /// ```
     /// 
-    /// - Note: 如果调试模式未启用，此方法不会执行任何操作
-    public func debugLayout(attributedText: NSAttributedString, containerSize: CGSize, exclusionPaths: [TEExclusionPath] = []) {
-        guard isDebuggingEnabled else { return }
+    /// - Note: 此方法会收集所有可用的调试信息，不受当前选项设置影响。
+    /// - SeeAlso: `TETextDebugInfo`, `debugLabel(_:)`, `debugTextView(_:)`
+    public func getDebugInfo(for view: UIView) -> TETextDebugInfo {
+        // 布局信息
+        let layoutInfo = getLayoutInfo(for: view)
         
-        // 创建临时文本容器进行调试
-        let textContainer = TETextContainer()
-        textContainer.size = containerSize
+        // 性能信息
+        let performanceInfo = getPerformanceInfo(for: view)
         
-        // 添加排除路径
-        for path in exclusionPaths {
-            textContainer.addExclusionPath(path)
-        }
+        // 排除路径信息
+        let exclusionPathInfo = getExclusionPathInfo(for: view)
         
-        // 收集布局调试信息
-        let debugInfo = collectLayoutDebugInfo(attributedText: attributedText, container: textContainer)
+        // 选择信息
+        let selectionInfo = getSelectionInfo(for: view)
         
-        // 保存调试信息
-        saveDebugInfo(debugInfo)
-        
-        // 通知委托
-        delegate?.debugger(self, didCollectDebugInfo: debugInfo, for: nil)
+        return TETextDebugInfo(
+            layoutInfo: layoutInfo,
+            performanceInfo: performanceInfo,
+            exclusionPathInfo: exclusionPathInfo,
+            selectionInfo: selectionInfo
+        )
     }
     
-    /// 清除所有调试图层
-    /// 移除所有当前显示的调试图层
+    /// 刷新调试
     /// 
-    /// 此方法会:
-    /// - 从父图层中移除所有调试图层
-    /// - 清空调试图层数组
-    /// - 不会影响调试模式状态
+    /// 重新应用调试可视化到所有已调试的视图。通常在更新调试选项后调用，
+    /// 以确保新的设置立即生效。
     /// 
     /// 使用示例:
     /// ```swift
-    /// // 清除当前调试图层
-    /// TETextDebugger.shared.clearAllDebugLayers()
-    /// 
-    /// // 调试模式仍然启用，可以继续调试其他视图
-    /// TETextDebugger.shared.debugLabel(newLabel)
+    /// // 更新选项后刷新调试显示
+    /// TETextDebugger.shared.updateOptions(newOptions)
+    /// TETextDebugger.shared.refreshDebugging()  // 立即应用新设置
     /// ```
-    public func clearAllDebugLayers() {
-        for layer in debugLayers {
-            layer.removeFromSuperlayer()
-        }
-        debugLayers.removeAll()
-    }
-    
-    /// 获取调试信息历史
-    /// 获取所有收集到的调试信息历史记录
     /// 
-    /// - Returns: 包含所有历史调试信息的数组，按时间顺序排列
-    /// 
-    /// 返回的数组包含:
-    /// - 所有通过调试方法收集的调试信息
-    /// - 最多 `maxHistoryCount` 条记录
-    /// - 按时间戳从早到晚排序
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// let history = TETextDebugger.shared.getDebugInfoHistory()
-    /// for debugInfo in history {
-    ///     if let performance = debugInfo.performanceInfo {
-    ///         print("布局时间: \\(performance.layoutTime)")
-    ///     }
-    /// }
-    /// ```
-    public func getDebugInfoHistory() -> [TETextDebugInfo] {
-        return debugInfoHistory
-    }
-    
-    /// 导出调试报告
-    /// 生成包含所有历史调试信息的文本报告
-    /// 
-    /// - Returns: 格式化的调试报告字符串
-    /// 
-    /// 报告包含:
-    /// - 报告生成时间
-    /// - 每条调试信息的详细统计
-    /// - 布局信息（行数、字符数等）
-    /// - 性能信息（时间、内存等）
-    /// - 排除路径信息（路径数量、面积等）
-    /// 
-    /// 使用示例:
-    /// ```swift
-    /// let report = TETextDebugger.shared.exportDebugReport()
-    /// print(report)
-    /// 
-    /// // 保存到文件
-    /// let url = FileManager.default.temporaryDirectory.appendingPathComponent("debug_report.txt")
-    /// try? report.write(to: url, atomically: true, encoding: .utf8)
-    /// ```
-    public func exportDebugReport() -> String {
-        var report = "TextEngineKit Debug Report\n"
-        report += "========================\n"
-        report += "Generated: \(Date())\n\n"
+    /// - Note: 仅在调试模式启用时有效。
+    /// - SeeAlso: `enableDebugging()`, `disableDebugging()`, `updateOptions(_:)`
+    public func refreshDebugging() {
+        guard isDebugging else { return }
         
-        for (index, info) in debugInfoHistory.enumerated() {
-            report += "Debug Info #\(index + 1)\n"
-            report += "Timestamp: \(info.timestamp)\n"
-            
-            if let layoutInfo = info.layoutInfo {
-                report += "Layout Info:\n"
-                report += "  - Line Count: \(layoutInfo.lineCount)\n"
-                report += "  - Total Glyphs: \(layoutInfo.totalGlyphCount)\n"
-                report += "  - Total Characters: \(layoutInfo.totalCharacterCount)\n"
-                report += "  - Line Fragments: \(layoutInfo.lineFragments.count)\n"
-                report += "  - Baselines: \(layoutInfo.baselines.count)\n"
+        // 重新应用调试到所有已调试的视图
+        for (view, _) in debugLayers {
+            if let label = view as? TELabel {
+                debugLabel(label)
+            } else if let textView = view as? TETextView {
+                debugTextView(textView)
             }
-            
-            if let performanceInfo = info.performanceInfo {
-                report += "Performance Info:\n"
-                report += "  - Layout Time: \(String(format: "%.3f", performanceInfo.layoutTime))s\n"
-                report += "  - Render Time: \(String(format: "%.3f", performanceInfo.renderTime))s\n"
-                report += "  - Total Time: \(String(format: "%.3f", performanceInfo.totalTime))s\n"
-                report += "  - Memory Usage: \(performanceInfo.memoryUsage) bytes\n"
-                report += "  - Cache Hit: \(performanceInfo.cacheHit)\n"
-            }
-            
-            if let exclusionPathInfo = info.exclusionPathInfo {
-                report += "Exclusion Path Info:\n"
-                report += "  - Paths: \(exclusionPathInfo.paths.count)\n"
-                report += "  - Valid Rects: \(exclusionPathInfo.validRects.count)\n"
-                report += "  - Excluded Area: \(String(format: "%.2f", exclusionPathInfo.excludedArea))\n"
-                report += "  - Total Area: \(String(format: "%.2f", exclusionPathInfo.totalArea))\n"
-            }
-            
-            report += "\n"
         }
-        
-        return report
     }
     
     // MARK: - 私有方法
     
-    /// 收集调试信息
-    /// - Parameter label: 标签
-    /// - Returns: 调试信息
-    private func collectDebugInfo(from label: TELabel) -> TETextDebugInfo {
-        let layoutInfo = collectLayoutInfo(from: label)
-        let performanceInfo = collectPerformanceInfo(from: label)
-        let exclusionPathInfo = collectExclusionPathInfo(from: label)
-        let selectionInfo = collectSelectionInfo(from: label)
-        
-        return TETextDebugInfo(
-            layoutInfo: layoutInfo,
-            performanceInfo: performanceInfo,
-            exclusionPathInfo: exclusionPathInfo,
-            selectionInfo: selectionInfo,
-            timestamp: Date()
-        )
-    }
-    
-    /// 收集调试信息
-    /// - Parameter textView: 文本视图
-    /// - Returns: 调试信息
-    private func collectDebugInfo(from textView: TETextView) -> TETextDebugInfo {
-        let layoutInfo = collectLayoutInfo(from: textView)
-        let performanceInfo = collectPerformanceInfo(from: textView)
-        let exclusionPathInfo = collectExclusionPathInfo(from: textView)
-        let selectionInfo = collectSelectionInfo(from: textView)
-        
-        return TETextDebugInfo(
-            layoutInfo: layoutInfo,
-            performanceInfo: performanceInfo,
-            exclusionPathInfo: exclusionPathInfo,
-            selectionInfo: selectionInfo,
-            timestamp: Date()
-        )
-    }
-    
-    /// 收集布局调试信息
-    /// - Parameters:
-    ///   - attributedText: 属性文本
-    ///   - container: 文本容器
-    /// - Returns: 调试信息
-    private func collectLayoutDebugInfo(attributedText: NSAttributedString, container: TETextContainer) -> TETextDebugInfo {
-        let startTime = CFAbsoluteTimeGetCurrent()
-        
-        // 创建CTFramesetter
-        let framesetter = CTFramesetterCreateWithAttributedString(attributedText)
-        
-        // 创建路径
-        let path = CGPath(rect: CGRect(origin: .zero, size: container.size), transform: nil)
-        
-        // 创建框架
-        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
-        
-        // 收集布局信息
-        let lines = CTFrameGetLines(frame) as! [CTLine]
-        let lineCount = lines.count
-        
-        var lineFragments: [TETextDebugInfo.LayoutInfo.LineFragmentInfo] = []
-        var baselines: [TETextDebugInfo.LayoutInfo.BaselineInfo] = []
-        
-        var totalGlyphCount = 0
-        
-        for (index, line) in lines.enumerated() {
-            let lineRange = CTLineGetStringRange(line)
-            let glyphCount = CTLineGetGlyphCount(line)
-            totalGlyphCount += glyphCount
-            
-            var ascent: CGFloat = 0
-            var descent: CGFloat = 0
-            var leading: CGFloat = 0
-            let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-            
-            let lineOrigin = CGPoint(x: 0, y: 0) // 实际需要计算正确的位置
-            let lineRect = CGRect(x: lineOrigin.x, y: lineOrigin.y - ascent, width: CGFloat(width), height: ascent + descent + leading)
-            
-            let lineFragment = TETextDebugInfo.LayoutInfo.LineFragmentInfo(
-                rect: lineRect,
-                usedRect: lineRect,
-                glyphCount: glyphCount,
-                characterRange: NSRange(location: lineRange.location, length: lineRange.length),
-                isTruncated: false
-            )
-            lineFragments.append(lineFragment)
-            
-            let baseline = TETextDebugInfo.LayoutInfo.BaselineInfo(
-                y: lineOrigin.y,
-                ascent: ascent,
-                descent: descent,
-                leading: leading
-            )
-            baselines.append(baseline)
+    private func clearAllDebugLayers() {
+        for (view, layers) in debugLayers {
+            for layer in layers {
+                layer.removeFromSuperlayer()
+            }
         }
-        
-        let layoutTime = CFAbsoluteTimeGetCurrent() - startTime
-        
-        let layoutInfo = TETextDebugInfo.LayoutInfo(
-            lineCount: lineCount,
-            totalGlyphCount: totalGlyphCount,
-            totalCharacterCount: attributedText.length,
-            lineFragments: lineFragments,
-            baselines: baselines
-        )
-        
-        let performanceInfo = TETextDebugInfo.PerformanceInfo(
-            layoutTime: layoutTime,
-            renderTime: 0,
-            totalTime: layoutTime,
-            memoryUsage: 0,
-            cacheHit: false
-        )
-        
-        return TETextDebugInfo(
-            layoutInfo: layoutInfo,
-            performanceInfo: performanceInfo,
-            exclusionPathInfo: nil,
-            selectionInfo: nil,
-            timestamp: Date()
-        )
+        debugLayers.removeAll()
     }
     
-    /// 收集布局信息
-    /// - Parameter label: 标签
-    /// - Returns: 布局信息
-    private func collectLayoutInfo(from label: TELabel) -> TETextDebugInfo.LayoutInfo? {
-        // 简化实现，实际需要访问label的内部布局数据
-        return nil
-    }
-    
-    /// 收集布局信息
-    /// - Parameter textView: 文本视图
-    /// - Returns: 布局信息
-    private func collectLayoutInfo(from textView: TETextView) -> TETextDebugInfo.LayoutInfo? {
-        // 简化实现，实际需要访问textView的内部布局数据
-        return nil
-    }
-    
-    /// 收集性能信息
-    /// - Parameter label: 标签
-    /// - Returns: 性能信息
-    private func collectPerformanceInfo(from label: TELabel) -> TETextDebugInfo.PerformanceInfo? {
-        // 简化实现，实际需要访问label的内部性能数据
-        return nil
-    }
-    
-    /// 收集性能信息
-    /// - Parameter textView: 文本视图
-    /// - Returns: 性能信息
-    private func collectPerformanceInfo(from textView: TETextView) -> TETextDebugInfo.PerformanceInfo? {
-        // 简化实现，实际需要访问textView的内部性能数据
-        return nil
-    }
-    
-    /// 收集排除路径信息
-    /// - Parameter label: 标签
-    /// - Returns: 排除路径信息
-    private func collectExclusionPathInfo(from label: TELabel) -> TETextDebugInfo.ExclusionPathInfo? {
-        // 简化实现，实际需要访问label的内部排除路径数据
-        return nil
-    }
-    
-    /// 收集排除路径信息
-    /// - Parameter textView: 文本视图
-    /// - Returns: 排除路径信息
-    private func collectExclusionPathInfo(from textView: TETextView) -> TETextDebugInfo.ExclusionPathInfo? {
-        // 简化实现，实际需要访问textView的内部排除路径数据
-        return nil
-    }
-    
-    /// 收集选择信息
-    /// - Parameter label: 标签
-    /// - Returns: 选择信息
-    private func collectSelectionInfo(from label: TELabel) -> TETextDebugInfo.SelectionInfo? {
-        // 简化实现，实际需要访问label的内部选择数据
-        return nil
-    }
-    
-    /// 收集选择信息
-    /// - Parameter textView: 文本视图
-    /// - Returns: 选择信息
-    private func collectSelectionInfo(from textView: TETextView) -> TETextDebugInfo.SelectionInfo? {
-        // 简化实现，实际需要访问textView的内部选择数据
-        return nil
-    }
-    
-    /// 显示调试图层
-    /// - Parameters:
-    ///   - view: 视图
-    ///   - debugInfo: 调试信息
-    private func showDebugLayers(for view: UIView, with debugInfo: TETextDebugInfo) {
-        guard let superview = view.superview else { return }
-        
-        // 清除之前的调试图层
-        clearAllDebugLayers()
-        
-        // 显示布局调试图层
-        if let layoutInfo = debugInfo.layoutInfo {
-            showLayoutDebugLayers(for: view, with: layoutInfo, in: superview)
-        }
-        
-        // 显示排除路径调试图层
-        if let exclusionPathInfo = debugInfo.exclusionPathInfo {
-            showExclusionPathDebugLayers(for: view, with: exclusionPathInfo, in: superview)
-        }
-        
-        // 显示选择调试图层
-        if let selectionInfo = debugInfo.selectionInfo {
-            showSelectionDebugLayers(for: view, with: selectionInfo, in: superview)
+    private func clearDebugLayers(for view: UIView) {
+        if let layers = debugLayers[view] {
+            for layer in layers {
+                layer.removeFromSuperlayer()
+            }
+            debugLayers.removeValue(forKey: view)
         }
     }
     
-    /// 显示布局调试图层
-    /// - Parameters:
-    ///   - view: 视图
-    ///   - layoutInfo: 布局信息
-    ///   - superview: 父视图
-    private func showLayoutDebugLayers(for view: UIView, with layoutInfo: TETextDebugInfo.LayoutInfo, in superview: UIView) {
+    private func applyDebugVisualization(to view: UIView, with debugInfo: TETextDebugInfo) {
+        var layers: [CALayer] = []
+        
         // 显示基线
         if options.showBaselines {
-            for baseline in layoutInfo.baselines {
-                let baselineLayer = createBaselineLayer(y: baseline.y, in: view)
-                superview.layer.addSublayer(baselineLayer)
-                debugLayers.append(baselineLayer)
-            }
+            let baselineLayers = createBaselineLayers(for: debugInfo.layoutInfo.baselines, in: view)
+            layers.append(contentsOf: baselineLayers)
         }
         
         // 显示行片段
         if options.showLineFragments {
-            for lineFragment in layoutInfo.lineFragments {
-                let fragmentLayer = createLineFragmentLayer(with: lineFragment, in: view)
-                superview.layer.addSublayer(fragmentLayer)
-                debugLayers.append(fragmentLayer)
-            }
+            let lineFragmentLayers = createLineFragmentLayers(for: debugInfo.layoutInfo.lineFragments, in: view)
+            layers.append(contentsOf: lineFragmentLayers)
         }
-    }
-    
-    /// 显示排除路径调试图层
-    /// - Parameters:
-    ///   - view: 视图
-    ///   - exclusionPathInfo: 排除路径信息
-    ///   - superview: 父视图
-    private func showExclusionPathDebugLayers(for view: UIView, with exclusionPathInfo: TETextDebugInfo.ExclusionPathInfo, in superview: UIView) {
-        if options.showExclusionPaths {
-            for path in exclusionPathInfo.paths {
-                let pathLayer = createExclusionPathLayer(with: path, in: view)
-                superview.layer.addSublayer(pathLayer)
-                debugLayers.append(pathLayer)
-            }
-        }
-    }
-    
-    /// 显示选择调试图层
-    /// - Parameters:
-    ///   - view: 视图
-    ///   - selectionInfo: 选择信息
-    ///   - superview: 父视图
-    private func showSelectionDebugLayers(for view: UIView, with selectionInfo: TETextDebugInfo.SelectionInfo, in superview: UIView) {
-        if options.showSelection {
-            for rect in selectionInfo.selectionRects {
-                let selectionLayer = createSelectionLayer(with: rect, in: view)
-                superview.layer.addSublayer(selectionLayer)
-                debugLayers.append(selectionLayer)
-            }
-        }
-    }
-    
-    /// 创建基线图层
-    /// - Parameters:
-    ///   - y: Y坐标
-    ///   - view: 视图
-    /// - Returns: 图层
-    private func createBaselineLayer(y: CGFloat, in view: UIView) -> CALayer {
-        let layer = CALayer()
-        layer.frame = CGRect(x: view.frame.minX, y: view.frame.minY + y, width: view.frame.width, height: options.lineWidth)
-        layer.backgroundColor = options.baselineColor.cgColor
-        return layer
-    }
-    
-    /// 创建行片段图层
-    /// - Parameters:
-    ///   - lineFragment: 行片段信息
-    ///   - view: 视图
-    /// - Returns: 图层
-    private func createLineFragmentLayer(with lineFragment: TETextDebugInfo.LayoutInfo.LineFragmentInfo, in view: UIView) -> CALayer {
-        let layer = CALayer()
-        layer.frame = CGRect(
-            x: view.frame.minX + lineFragment.rect.minX,
-            y: view.frame.minY + lineFragment.rect.minY,
-            width: lineFragment.rect.width,
-            height: lineFragment.rect.height
-        )
-        layer.borderWidth = options.lineWidth
-        layer.borderColor = options.lineFragmentBorderColor.cgColor
-        layer.backgroundColor = options.lineFragmentUsedBorderColor.cgColor
-        return layer
-    }
-    
-    /// 创建排除路径图层
-    /// - Parameters:
-    ///   - path: 路径
-    ///   - view: 视图
-    /// - Returns: 图层
-    private func createExclusionPathLayer(with path: UIBezierPath, in view: UIView) -> CALayer {
-        let layer = CAShapeLayer()
-        layer.path = path.cgPath
-        layer.fillColor = options.exclusionPathColor.cgColor
-        layer.strokeColor = options.exclusionPathColor.cgColor
-        layer.lineWidth = options.lineWidth
-        layer.frame = view.frame
-        return layer
-    }
-    
-    /// 创建选择图层
-    /// - Parameters:
-    ///   - rect: 矩形
-    ///   - view: 视图
-    /// - Returns: 图层
-    private func createSelectionLayer(with rect: CGRect, in view: UIView) -> CALayer {
-        let layer = CALayer()
-        layer.frame = CGRect(
-            x: view.frame.minX + rect.minX,
-            y: view.frame.minY + rect.minY,
-            width: rect.width,
-            height: rect.height
-        )
-        layer.backgroundColor = options.selectionColor.cgColor
-        return layer
-    }
-    
-    /// 保存调试信息
-    /// - Parameter debugInfo: 调试信息
-    private func saveDebugInfo(_ debugInfo: TETextDebugInfo) {
-        debugInfoHistory.append(debugInfo)
         
-        // 限制历史记录数量
-        if debugInfoHistory.count > maxHistoryCount {
-            debugInfoHistory.removeFirst()
+        // 显示字形
+        if options.showGlyphs {
+            let glyphLayers = createGlyphLayers(for: debugInfo.layoutInfo.glyphs, in: view)
+            layers.append(contentsOf: glyphLayers)
         }
+        
+        // 显示排除路径
+        if options.showExclusionPaths {
+            let exclusionPathLayers = createExclusionPathLayers(for: debugInfo.exclusionPathInfo, in: view)
+            layers.append(contentsOf: exclusionPathLayers)
+        }
+        
+        // 显示选择
+        if options.showSelection {
+            let selectionLayers = createSelectionLayers(for: debugInfo.selectionInfo, in: view)
+            layers.append(contentsOf: selectionLayers)
+        }
+        
+        // 显示附件
+        if options.showAttachments {
+            let attachmentLayers = createAttachmentLayers(for: debugInfo.layoutInfo.attachments, in: view)
+            layers.append(contentsOf: attachmentLayers)
+        }
+        
+        // 显示高亮
+        if options.showHighlights {
+            let highlightLayers = createHighlightLayers(for: debugInfo.layoutInfo.highlights, in: view)
+            layers.append(contentsOf: highlightLayers)
+        }
+        
+        // 添加到视图
+        for layer in layers {
+            view.layer.addSublayer(layer)
+        }
+        
+        // 保存调试图层引用
+        debugLayers[view] = layers
     }
     
-    /// 设置通知观察者
-    private func setupNotificationObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(applicationWillEnterForeground),
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
+    private func createBaselineLayers(for baselines: [TETextDebugInfo.BaselineInfo], in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for baseline in baselines {
+            let layer = CALayer()
+            layer.frame = CGRect(x: 0, y: baseline.y, width: view.bounds.width, height: options.lineWidth)
+            layer.backgroundColor = options.baselineColor.cgColor
+            
+            layers.append(layer)
+        }
+        
+        return layers
+    }
+    
+    private func createLineFragmentLayers(for fragments: [TETextDebugInfo.LineFragmentInfo], in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for fragment in fragments {
+            // 完整矩形
+            let fullLayer = CALayer()
+            fullLayer.frame = fragment.rect
+            fullLayer.borderWidth = options.lineWidth
+            fullLayer.borderColor = options.lineFragmentBorderColor.cgColor
+            fullLayer.backgroundColor = options.lineFragmentBorderColor.cgColor.copy(alpha: 0.1)
+            layers.append(fullLayer)
+            
+            // 使用矩形
+            let usedLayer = CALayer()
+            usedLayer.frame = fragment.usedRect
+            usedLayer.borderWidth = options.lineWidth
+            usedLayer.borderColor = options.lineFragmentUsedBorderColor.cgColor
+            usedLayer.backgroundColor = options.lineFragmentUsedBorderColor.cgColor.copy(alpha: 0.1)
+            layers.append(usedLayer)
+            
+            // 添加调试文本
+            if options.debugFontSize > 0 {
+                let textLayer = CATextLayer()
+                textLayer.string = "L:\(fragment.characterRange.location)-\(fragment.characterRange.location + fragment.characterRange.length) G:\(fragment.glyphCount)"
+                textLayer.fontSize = options.debugFontSize
+                textLayer.foregroundColor = options.debugTextColor.cgColor
+                textLayer.frame = CGRect(x: fragment.rect.origin.x + 2, y: fragment.rect.origin.y - options.debugFontSize - 2, width: 100, height: options.debugFontSize + 4)
+                layers.append(textLayer)
+            }
+        }
+        
+        return layers
+    }
+    
+    private func createGlyphLayers(for glyphs: [TETextDebugInfo.GlyphInfo], in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for glyph in glyphs {
+            let layer = CALayer()
+            layer.frame = glyph.rect
+            layer.borderWidth = options.lineWidth
+            layer.borderColor = options.glyphBorderColor.cgColor
+            layer.backgroundColor = options.glyphBorderColor.cgColor.copy(alpha: 0.1)
+            
+            layers.append(layer)
+        }
+        
+        return layers
+    }
+    
+    private func createExclusionPathLayers(for exclusionPathInfo: TETextDebugInfo.ExclusionPathInfo, in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for path in exclusionPathInfo.paths {
+            let shapeLayer = CAShapeLayer()
+            shapeLayer.path = path.cgPath
+            shapeLayer.fillColor = options.exclusionPathColor.cgColor.copy(alpha: 0.2)
+            shapeLayer.strokeColor = options.exclusionPathColor.cgColor
+            shapeLayer.lineWidth = options.lineWidth
+            
+            layers.append(shapeLayer)
+        }
+        
+        return layers
+    }
+    
+    private func createSelectionLayers(for selectionInfo: TETextDebugInfo.SelectionInfo, in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for rect in selectionInfo.selectionRects {
+            let layer = CALayer()
+            layer.frame = rect
+            layer.backgroundColor = selectionInfo.selectionColor.cgColor.copy(alpha: 0.3)
+            layer.borderWidth = options.lineWidth
+            layer.borderColor = selectionInfo.selectionColor.cgColor
+            
+            layers.append(layer)
+        }
+        
+        return layers
+    }
+    
+    private func createAttachmentLayers(for attachments: [TETextDebugInfo.AttachmentInfo], in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for attachment in attachments {
+            let layer = CALayer()
+            layer.frame = attachment.rect
+            layer.borderWidth = options.lineWidth
+            layer.borderColor = options.attachmentColor.cgColor
+            layer.backgroundColor = options.attachmentColor.cgColor.copy(alpha: 0.2)
+            
+            layers.append(layer)
+        }
+        
+        return layers
+    }
+    
+    private func createHighlightLayers(for highlights: [TETextDebugInfo.HighlightInfo], in view: UIView) -> [CALayer] {
+        var layers: [CALayer] = []
+        
+        for highlight in highlights {
+            for rect in highlight.rects {
+                let layer = CALayer()
+                layer.frame = rect
+                layer.backgroundColor = highlight.color.cgColor.copy(alpha: 0.3)
+                layer.borderWidth = options.lineWidth
+                layer.borderColor = highlight.color.cgColor
+                
+                layers.append(layer)
+            }
+        }
+        
+        return layers
+    }
+    
+    // MARK: - 调试信息获取
+    
+    private func getLayoutInfo(for view: UIView) -> TETextDebugInfo.LayoutInfo {
+        // 这里需要根据实际的文本视图获取布局信息
+        // 暂时返回模拟数据
+        
+        let containerInfo = TETextDebugInfo.ContainerInfo(
+            size: view.bounds.size,
+            insets: .zero,
+            exclusionPathCount: 0,
+            alignment: .natural,
+            lineSpacing: 0,
+            paragraphSpacing: 0
+        )
+        
+        let lineFragments = [
+            TETextDebugInfo.LineFragmentInfo(
+                rect: CGRect(x: 0, y: 0, width: view.bounds.width, height: 20),
+                usedRect: CGRect(x: 0, y: 0, width: view.bounds.width * 0.8, height: 20),
+                glyphCount: 50,
+                characterRange: NSRange(location: 0, length: 50),
+                isTruncated: false
+            )
+        ]
+        
+        let baselines = [
+            TETextDebugInfo.BaselineInfo(y: 15, ascent: 12, descent: 4, leading: 2)
+        ]
+        
+        return TETextDebugInfo.LayoutInfo(
+            container: containerInfo,
+            lineFragments: lineFragments,
+            baselines: baselines,
+            glyphs: [],
+            attachments: [],
+            highlights: []
         )
     }
     
-    /// 移除通知观察者
-    private func removeNotificationObservers() {
-        NotificationCenter.default.removeObserver(self)
+    private func getPerformanceInfo(for view: UIView) -> TETextDebugInfo.PerformanceInfo {
+        // 这里需要从性能分析器获取实际的性能信息
+        // 暂时返回模拟数据
+        return TETextDebugInfo.PerformanceInfo(
+            layoutTime: 0.001,
+            renderTime: 0.002,
+            totalTime: 0.003,
+            memoryUsage: 1024,
+            cacheHit: true
+        )
     }
     
-    /// 应用将进入前台
-    @objc private func applicationWillEnterForeground() {
-        // 刷新调试图层
-        if isDebuggingEnabled {
-            // 可以在这里重新显示之前的调试图层
-        }
-    }
-}
-
-/// 文本调试器委托
-/// 用于接收文本调试器的事件通知和调试信息
-/// 
-/// 功能特性:
-/// - 接收调试信息收集完成通知
-/// - 获取详细的调试数据
-/// - 关联的视图对象（如果有）
-/// 
-/// 使用示例:
-/// ```swift
-/// class MyDebuggerDelegate: TETextDebuggerDelegate {
-///     func debugger(_ debugger: TETextDebugger, didCollectDebugInfo debugInfo: TETextDebugInfo, for view: UIView?) {
-///         // 处理调试信息
-///         print("收到调试信息，时间: \\(debugInfo.timestamp)")
-///         
-///         // 分析布局信息
-///         if let layoutInfo = debugInfo.layoutInfo {
-///             print("行数: \\(layoutInfo.lineCount)")
-///             print("总字符数: \\(layoutInfo.totalCharacterCount)")
-///         }
-///         
-///         // 分析性能信息
-///         if let performanceInfo = debugInfo.performanceInfo {
-///             print("布局耗时: \\(performanceInfo.layoutTime)秒")
-///             print("内存使用: \\(performanceInfo.memoryUsage)字节")
-///         }
-///         
-///         // 检查关联的视图
-///         if let view = view {
-///             print("调试的视图类型: \\(type(of: view))")
-///         }
-///     }
-/// }
-/// 
-/// // 设置委托
-/// TETextDebugger.shared.delegate = MyDebuggerDelegate()
-/// ```
-public protocol TETextDebuggerDelegate: AnyObject {
-    /// 调试器收集了调试信息
-    /// 
-    /// 当调试器完成调试信息收集时调用此方法
-    /// 
-    /// - Parameters:
-    ///   - debugger: 发送通知的调试器实例
-    ///   - debugInfo: 收集到的完整调试信息，包含布局、性能、排除路径和选择信息
-    ///   - view: 关联的视图对象。如果是通过 `debugLayout` 方法调用，此参数为 `nil`
-    /// 
-    /// - Note: 所有参数都保证有效，但 `debugInfo` 中的某些信息可能为 `nil`（如没有排除路径时）
-    func debugger(_ debugger: TETextDebugger, didCollectDebugInfo debugInfo: TETextDebugInfo, for view: UIView?)
-}
-
-/// TELabel扩展，支持调试
-/// 为 `TELabel` 提供便捷的调试方法
-/// 
-/// 功能特性:
-/// - 一键启用调试模式
-/// - 一键清除调试图层
-/// - 简化调试操作流程
-/// 
-/// 使用示例:
-/// ```swift
-/// let label = TELabel()
-/// label.text = "Hello World"
-/// 
-/// // 启用调试（显示调试图层）
-/// label.enableDebugMode()
-/// 
-/// // 清除调试图层（保持调试模式启用）
-/// label.disableDebugMode()
-/// ```
-extension TELabel {
-    
-    /// 启用调试模式
-    /// 对当前标签进行调试分析和可视化
-    /// 
-    /// 此方法会:
-    /// - 检查调试器是否启用
-    /// - 收集标签的调试信息
-    /// - 显示相应的调试图层
-    /// - 保存调试信息到历史记录
-    /// 
-    /// 等同于调用:
-    /// ```swift
-    /// TETextDebugger.shared.debugLabel(self)
-    /// ```
-    /// 
-    /// - Note: 如果调试器未启用，此方法不会执行任何操作
-    public func enableDebugMode() {
-        TETextDebugger.shared.debugLabel(self)
+    private func getExclusionPathInfo(for view: UIView) -> TETextDebugInfo.ExclusionPathInfo {
+        // 这里需要从实际的文本布局获取排除路径信息
+        // 暂时返回空数据
+        return TETextDebugInfo.ExclusionPathInfo(
+            paths: [],
+            validRects: [],
+            excludedArea: 0,
+            totalArea: view.bounds.width * view.bounds.height
+        )
     }
     
-    /// 禁用调试模式
-    /// 清除所有当前显示的调试图层
-    /// 
-    /// 此方法会:
-    /// - 移除所有调试图层
-    /// - 保持调试器状态不变
-    /// 
-    /// 等同于调用:
-    /// ```swift
-    /// TETextDebugger.shared.clearAllDebugLayers()
-    /// ```
-    /// 
-    /// - Note: 此方法不会禁用调试器，只是清除当前调试图层
-    public func disableDebugMode() {
-        TETextDebugger.shared.clearAllDebugLayers()
-    }
-}
-
-/// TETextView扩展，支持调试
-/// 为 `TETextView` 提供便捷的调试方法
-/// 
-/// 功能特性:
-/// - 一键启用调试模式
-/// - 一键清除调试图层
-/// - 简化调试操作流程
-/// 
-/// 使用示例:
-/// ```swift
-/// let textView = TETextView()
-/// textView.text = "Long text content..."
-/// 
-/// // 启用调试（显示调试图层）
-/// textView.enableDebugMode()
-/// 
-/// // 清除调试图层（保持调试模式启用）
-/// textView.disableDebugMode()
-/// ```
-extension TETextView {
-    
-    /// 启用调试模式
-    /// 对当前文本视图进行调试分析和可视化
-    /// 
-    /// 此方法会:
-    /// - 检查调试器是否启用
-    /// - 收集文本视图的调试信息
-    /// - 显示相应的调试图层
-    /// - 保存调试信息到历史记录
-    /// 
-    /// 等同于调用:
-    /// ```swift
-    /// TETextDebugger.shared.debugTextView(self)
-    /// ```
-    /// 
-    /// - Note: 如果调试器未启用，此方法不会执行任何操作
-    public func enableDebugMode() {
-        TETextDebugger.shared.debugTextView(self)
-    }
-    
-    /// 禁用调试模式
-    /// 清除所有当前显示的调试图层
-    /// 
-    /// 此方法会:
-    /// - 移除所有调试图层
-    /// - 保持调试器状态不变
-    /// 
-    /// 等同于调用:
-    /// ```swift
-    /// TETextDebugger.shared.clearAllDebugLayers()
-    /// ```
-    /// 
-    /// - Note: 此方法不会禁用调试器，只是清除当前调试图层
-    public func disableDebugMode() {
-        TETextDebugger.shared.clearAllDebugLayers()
+    private func getSelectionInfo(for view: UIView) -> TETextDebugInfo.SelectionInfo {
+        // 这里需要从文本选择管理器获取选择信息
+        // 暂时返回空数据
+        return TETextDebugInfo.SelectionInfo(
+            selectedRange: nil,
+            selectionRects: [],
+            handlePositions: nil,
+            selectionColor: .systemYellow
+        )
     }
 }
 

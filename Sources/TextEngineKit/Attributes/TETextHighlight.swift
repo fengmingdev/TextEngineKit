@@ -8,6 +8,7 @@
 // 
 import Foundation
 import CoreGraphics
+import CoreText
 
 #if canImport(AppKit)
 import AppKit
@@ -443,7 +444,7 @@ public final class TEHighlightManager {
         
         // 长按手势
         #if canImport(UIKit)
-        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPressGesture(_:)))
+        let longPressGesture = TELongPressGestureRecognizer(target: self, action: #selector(handleLongPressGesture(_:)))
         longPressGesture.minimumPressDuration = 0.5
         #elseif canImport(AppKit)
         let longPressGesture = NSPressGestureRecognizer(target: self, action: #selector(handlePressGesture(_:)))
@@ -456,7 +457,7 @@ public final class TEHighlightManager {
     /// - Parameter gesture: 手势识别器
     @objc private func handleLongPressGesture(_ gesture: TEGestureRecognizer) {
         #if canImport(UIKit)
-        guard let longPressGesture = gesture as? UILongPressGestureRecognizer, longPressGesture.state == .began else { return }
+        guard let longPressGesture = gesture as? TELongPressGestureRecognizer, longPressGesture.state == .began else { return }
         #elseif canImport(AppKit)
         guard let pressGesture = gesture as? NSPressGestureRecognizer, pressGesture.state == .began else { return }
         #endif
@@ -517,8 +518,8 @@ public final class TEHighlightManager {
         var result: CGRect = .null
         for (i, line) in info.lines.enumerated() {
             let origin = info.lineOrigins[i]
-            let cfRuns = CTLineGetGlyphRuns(line)
-            let runs = (cfRuns as NSArray as? [CTRun]) ?? []
+            let cfRuns = CTLineGetGlyphRuns(line) as NSArray
+            let runs = cfRuns as? [CTRun] ?? []
             for run in runs {
                 let rr = CTRunGetStringRange(run)
                 let inter = NSIntersectionRange(NSRange(location: rr.location, length: rr.length), range)
@@ -527,7 +528,8 @@ public final class TEHighlightManager {
                     var descent: CGFloat = 0
                     var leading: CGFloat = 0
                     let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading))
-                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, nil)
+                    var secondaryOffset: CGFloat = 0
+                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, &secondaryOffset)
                     let rect = CGRect(x: origin.x + CGFloat(offset), y: origin.y - descent, width: width, height: ascent + descent)
                     result = result.union(rect)
                 }
@@ -564,8 +566,8 @@ public final class TEHighlightManager {
         var result: CGRect = .null
         for (i, line) in info.lines.enumerated() {
             let origin = info.lineOrigins[i]
-            let cfRuns = CTLineGetGlyphRuns(line)
-            let runs = (cfRuns as NSArray as? [CTRun]) ?? []
+            let cfRuns = CTLineGetGlyphRuns(line) as NSArray
+            let runs = cfRuns as? [CTRun] ?? []
             for run in runs {
                 let rr = CTRunGetStringRange(run)
                 let inter = NSIntersectionRange(NSRange(location: rr.location, length: rr.length), range)
@@ -574,7 +576,8 @@ public final class TEHighlightManager {
                     var descent: CGFloat = 0
                     var leading: CGFloat = 0
                     let width = CGFloat(CTRunGetTypographicBounds(run, CFRange(location: 0, length: 0), &ascent, &descent, &leading))
-                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, nil)
+                    var secondaryOffset: CGFloat = 0
+                    let offset = CTLineGetOffsetForStringIndex(line, rr.location, &secondaryOffset)
                     let rect = CGRect(x: origin.x + CGFloat(offset), y: origin.y - descent, width: width, height: ascent + descent)
                     result = result.union(rect)
                 }

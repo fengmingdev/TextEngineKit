@@ -510,7 +510,7 @@ public actor TEAdvancedCacheOptimizer {
         do {
             let data = try NSKeyedArchiver.archivedData(withRootObject: entry.value, requiringSecureCoding: false)
             try data.write(to: path)
-            await updateDiskUsage()
+            updateDiskUsage()
         } catch {
             logger?.log("磁盘缓存写入失败: \(entry.key) - \(error.localizedDescription)", level: .error, category: "cache.optimizer", metadata: nil)
         }

@@ -827,9 +827,9 @@ public final class TEVerticalTextView: TEView {
     }
     private func setupGestureRecognizers() {
         #if canImport(UIKit)
-        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        let tap = TETapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         addGestureRecognizer(tap)
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        let longPress = TELongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         longPress.minimumPressDuration = 0.5
         addGestureRecognizer(longPress)
         #elseif canImport(AppKit)
@@ -841,13 +841,13 @@ public final class TEVerticalTextView: TEView {
     }
 
     #if canImport(UIKit)
-    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+    @objc private func handleTap(_ gesture: TETapGestureRecognizer) {
         let point = gesture.location(in: self)
         if let text = attributedText, let info = layoutInfo {
             _ = highlightManager.handleTapVertical(at: point, in: text, textRect: bounds, layoutInfo: info)
         }
     }
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+    @objc private func handleLongPress(_ gesture: TELongPressGestureRecognizer) {
         guard gesture.state == .began else { return }
         let point = gesture.location(in: self)
         if let text = attributedText, let info = layoutInfo {

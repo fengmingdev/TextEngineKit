@@ -45,7 +45,7 @@ public final class TELabel: UILabel {
     public var onAttachmentView: ((TETextAttachment) -> Void)?
     /// 保存附件回调
     public var onAttachmentSave: ((TETextAttachment) -> Void)?
-    private var lastLayoutInfo: TELayoutInfo?
+    var lastLayoutInfo: TELayoutInfo?
     
     /// 是否启用异步布局
     @IBInspectable public var enableAsyncLayout: Bool = true {
@@ -206,6 +206,16 @@ public final class TELabel: UILabel {
             super.drawText(in: rect)
         }
     }
+
+    private func enableDebugMode() {
+        TETextDebugger.shared.enableDebugging()
+        TETextDebugger.shared.debugLabel(self)
+    }
+
+    private func disableDebugMode() {
+        TETextDebugger.shared.disableDebugging()
+    }
+
     
     // MARK: - 公共方法
     
@@ -332,7 +342,7 @@ public final class TELabel: UILabel {
     }
     
     /// 阴影模糊半径（兼容UILabel）
-    public override var shadowRadius: CGFloat {
+    public var shadowRadius: CGFloat {
         get { return layer.shadowRadius }
         set {
             layer.shadowRadius = newValue
@@ -370,21 +380,7 @@ public final class TELabel: UILabel {
         font = currentFont.withSize(bestFontSize)
     }
     
-    /// 获取指定点的字符索引（类似UITextView）
-    public func characterIndex(at point: CGPoint) -> Int {
-        return highlightManager.characterIndex(at: point, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
-    }
     
-    /// 获取指定字符索引的边界矩形（类似UITextView）
-    public func boundingRect(forCharacterAt index: Int) -> CGRect {
-        let range = NSRange(location: index, length: 1)
-        return highlightManager.boundingRect(for: range, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
-    }
-    
-    /// 获取指定范围的边界矩形（类似UITextView）
-    public func boundingRect(for range: NSRange) -> CGRect {
-        return highlightManager.boundingRect(for: range, in: attributedText ?? NSAttributedString(), textRect: bounds, layoutInfo: lastLayoutInfo)
-    }
     
     /// 添加排除路径
     /// - Parameter path: 排除路径
